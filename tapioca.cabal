@@ -6,9 +6,14 @@ license-file: LICENSE
 maintainer: cfraz89@gmail.com
 author: Christopher Fraser
 synopsis: A tasty enhancement to cassava for easy csv exporting
+description: tapioca is a package that builds on cassava, to provide a simpler, more succinct method of exporting CSV's with headers.
 category: Data
 extra-source-files:
     CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/cfraz89/tapioca.git
 
 library
     exposed-modules:
@@ -16,7 +21,7 @@ library
     hs-source-dirs: src
     default-language: Haskell2010
     build-depends:
-        base >=4.10.0,
+        base >=4.10.0 && < 1000,
         cassava -any,
         bytestring -any,
         vector -any,
