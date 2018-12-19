@@ -26,4 +26,5 @@ library
         bytestring -any,
         vector -any,
         unordered-containers -any,
-        binary -any
+        binary -any,
+        attoparsec -any
