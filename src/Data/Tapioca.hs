@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -26,6 +27,7 @@ module Data.Tapioca
   , CsvRecord(..)
   , Header(..)
   , encode
+  , decode
   ) where
 
 import GHC.Generics
@@ -45,7 +47,8 @@ import Data.List
 import Data.Maybe
 import Data.Proxy
 import qualified Data.Vector as V
-import Data.HashMap.Strict as HM
+import Data.Vector ((!))
+import qualified Data.HashMap.Strict as HM
 
 -- $example
 -- > data TestItem = TestItem
@@ -65,20 +68,22 @@ mb ?! err = maybe (fail err) pure mb
 instance (HasField x r a, KnownSymbol x, C.ToField a) => IsLabel x (Mapping r) where
   fromLabel = Mapping (symbolVal' (proxy# :: Proxy# x)) (getField @x)
 
-infixl 0 :=
 data Mapping r = forall f. C.ToField f => Mapping String (r -> f)
 
 instance Show (Mapping r) where
   show (Mapping field get) = "Mapping " <> field
 
+infixl 0 :=
 data FieldMapping r = B.ByteString := Mapping r
   deriving Show
 type CsvMap r = V.Vector (FieldMapping r)
 
 data SelProxy t f a = SelProxy
 
+type GenericCsvDecode r =  (GSelectorList (Rep r), GParseRecord (Rep r), Generic r)
+
 -- | This is the core type class of tapioca. Implement it in your types to support easy encoding to CSV
-class (GSelectorList (Rep r), GParseRecord (Rep r), Generic r) => CsvMapped r where
+class CsvMapped r where
   csvMap :: CsvMap r
 
 class GSelectorList (f :: * -> *) where
@@ -86,7 +91,7 @@ class GSelectorList (f :: * -> *) where
 
 instance GSelectorList f => GSelectorList (M1 D t f) where
   gSelectorList _ = gSelectorList (Proxy @f)
-  
+
 instance GSelectorList f => GSelectorList (M1 C t f) where
   gSelectorList _ = gSelectorList (Proxy @f)
 
@@ -110,20 +115,15 @@ instance GIndexedParseRecord f => GParseRecord (M1 C t f) where
 
 -- Lifted this indexing technique from cassava :D
 instance C.FromField a => GIndexedParseRecord (M1 S t (K1 i a)) where
-  gIndexedParseRecord i selectorOrder record = (\v -> (i+1, M1 (K1 v))) <$> C.parseField (record V.! (selectorOrder V.! i))
+  gIndexedParseRecord i selectorOrder record = (\v -> (i+1, M1 $ K1 v)) <$> C.parseField (record ! (selectorOrder ! i))
 
 instance (GIndexedParseRecord a, GIndexedParseRecord b) => GIndexedParseRecord (a :*: b) where
   gIndexedParseRecord i selectorOrder record = do
-    (ia, a) <- gIndexedParseRecord i selectorOrder record 
+    (ia, a) <- gIndexedParseRecord i selectorOrder record
     (ib, b) <- gIndexedParseRecord ia selectorOrder record
     pure (ib, a :*: b)
 
-
--- gDecodeField :: C.FromField a => B.ByteString -> Either String (K1 i a p)
--- gDecodeField = (K1 <$>) . C.runParser . C.parseField
-
---TODO ordering when no header
-preParser :: forall a. CsvMapped a => Proxy a -> Header -> Parser (V.Vector Int, C.Csv)
+preParser :: forall a. (CsvMapped a, GenericCsvDecode a) => Proxy a -> Header -> Parser (V.Vector Int, C.Csv)
 preParser _ header = do
   hdr <- CP.header . fromIntegral . fromEnum $ ','
   selectorMapping <- traverse (positionOf hdr) (V.indexed $ csvMap @a)
@@ -131,14 +131,14 @@ preParser _ header = do
   records <- CP.csv C.defaultDecodeOptions
   pure (selectorOrder, records)
   where selectors = gSelectorList (Proxy @(Rep a))
-        positionOf hdr (i, (fieldHeader := (Mapping sel _))) = do
+        positionOf hdr (i, fieldHeader := Mapping sel _) = do
           selectorIndex <- elemIndex sel selectors ?! ("Record type doesn't have selector " <> sel)
           headerIndex <- case header of
             WithHeader -> V.elemIndex fieldHeader hdr ?! ("Couldn't find header item " <> show fieldHeader <> " in CSV header")
             WithoutHeader -> pure i
           pure (selectorIndex, headerIndex)
 
-decode :: forall a. CsvMapped a => Header -> B.ByteString -> Either String (V.Vector a)
+decode :: forall a. (CsvMapped a, GenericCsvDecode a) => Header -> B.ByteString -> Either String (V.Vector a)
 decode header bs = do
    (selectorOrder, csv) <- parseOnly (preParser (Proxy @a) header) bs
    C.runParser $ traverse ((to <$>) . gParseRecord selectorOrder) csv
@@ -155,16 +155,24 @@ instance CsvMapped r => C.ToNamedRecord (CsvRecord r) where
   toNamedRecord (CsvRecord a) = V.foldr' (\(name := Mapping _ getField) -> HM.insert name (C.toField $ getField a)) HM.empty csvMap
 
 instance CsvMapped r => C.DefaultOrdered (CsvRecord r) where
-  headerOrder _ = (\(name := _) -> name) <$> csvMap @r
+  headerOrder _ = header (Proxy @r)
 
+-- | When encoding, whether or not to write the header row
+-- When decoding, whether or not the csv being decoded contains a header row
+-- if decoding WithoutHeader, tapioca will map the order of fields in the csv
+-- to the order that fields are specified in the csvMap.
 data Header = WithHeader | WithoutHeader
 
+-- | Encode a list of items using our mapping
 encode :: forall r. CsvMapped r => Header -> [r] -> B.ByteString
 encode withHeader items = BL.toStrict . BB.toLazyByteString $ case withHeader of
-  WithHeader -> CB.encodeHeader (C.headerOrder @(CsvRecord r) undefined) <> recordItems
+  WithHeader -> CB.encodeHeader (header (Proxy @r)) <> recordItems
   WithoutHeader -> recordItems
-  where recordItems = mconcat $ CB.encodeRecord . CsvRecord <$> items
+  where recordItems = foldr ((<>) . CB.encodeRecord . CsvRecord) mempty items
 
+-- | We export this since IMO Proxy is nicer than undefined
+header :: forall r. CsvMapped r => Proxy r -> V.Vector B.ByteString
+header _= (\(name := _) -> name) <$> csvMap @r
 
 data TestRecord = TestRecord
   { field1 :: Int
@@ -187,4 +195,7 @@ testCsvNoHeader :: B.ByteString
 testCsvNoHeader = "1,8,testField2\n42,10,sample data"
 
 testItems :: [TestRecord]
-testItems = [TestRecord 1 "This is field 2" (Just 3)]
+testItems = 
+  [ TestRecord 1 "This is field 2" (Just 3)
+  , TestRecord 2 "This is field 2 again" (Just 6)
+  ]
