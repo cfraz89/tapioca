@@ -9,11 +9,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | This module provides support for easier encoding to CSV via the CsvMapped typeclass.
 
@@ -59,27 +58,42 @@ import qualified Data.HashMap.Strict as HM
 
 -- > instance CsvMapped TestItem where
 -- >  csvMap = mkCsvMap
--- >    [ "field1" := field1
--- >    , "field2" := field2
+-- >    [ "field1" := #field1
+-- >    , "field2" := #field2
 -- >    ]
 
 (?!) :: Maybe a -> String -> Parser a
 mb ?! err = maybe (fail err) pure mb
 
-instance (HasField x r f, KnownSymbol x, C.ToField f) => IsLabel x (FieldMapping r f) where
-  fromLabel = FieldMapping (symbolVal' (proxy# :: Proxy# x)) (getField @x)
+instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f e d) where
+  fromLabel = FieldMapping (symbolVal' (proxy# :: Proxy# x)) (getField @x) id
 
 -- Initially expose our field type so that it can be mapped over
-data FieldMapping r f = FieldMapping String (r -> f)
+-- r - Record type
+-- f - field type with record
+-- e - type to encode as
+-- g - Type to decode as
+data FieldMapping r f e d = FieldMapping
+  { selector :: String
+  , toEncodable :: r -> e
+  , fromDecodable :: d -> f
+  }
 
-instance Functor (FieldMapping r) where
-  fmap f (FieldMapping sel encodeField) = FieldMapping sel (f . encodeField)
+-- Esentially Functor instance
+encodeWith :: C.ToField x => (e -> x) -> FieldMapping r f e d -> FieldMapping r f x d
+encodeWith f fm = fm { toEncodable = f . toEncodable fm }
 
-instance Show (FieldMapping r f) where
-  show (FieldMapping field get) = "Mapping " <> field <> " (r -> f)"
+decodeWith :: C.FromField x => (x -> d) -> FieldMapping r f e d -> FieldMapping r f e x
+decodeWith f fm = fm { fromDecodable = fromDecodable fm . f }
+
+with :: (C.ToField x, C.FromField y) => (e -> x) -> (y -> d) -> FieldMapping r f e d -> FieldMapping r f x y
+with enc dec = encodeWith enc . decodeWith dec
+
+instance Show (FieldMapping r f e d) where
+  show fm = "Mapping " <> selector fm <> " (r -> f) (g -> f)"
 
 infixl 0 :=
-data NamedFieldMapping r = forall f. C.ToField f => B.ByteString := FieldMapping r f
+data NamedFieldMapping r = forall f e d. (C.ToField e, C.FromField d) => B.ByteString := FieldMapping r f e d
 
 instance Show (NamedFieldMapping r) where
   show (name := fm) = show name <> " := " <> show fm
@@ -87,9 +101,9 @@ instance Show (NamedFieldMapping r) where
 newtype CsvMap r = CsvMap { unCsvMap :: V.Vector (NamedFieldMapping r) }
   deriving Show
 
-instance Contravariant CsvMap where
-  contramap f (CsvMap mappings) = CsvMap $ contraMapping <$> mappings
-    where contraMapping (name := FieldMapping sel getField) = name := FieldMapping sel (getField . f)
+-- instance Contravariant CsvMap where
+--   contramap f (CsvMap mappings) = CsvMap $ contraMapping <$> mappings
+--     where contraMapping (name := FieldMapping{..}) = name := FieldMapping selector (toEncodable . f) fromDecodable
 
 data SelProxy t f a = SelProxy
 
@@ -99,7 +113,7 @@ type GenericCsvDecode r =  (GSelectorList (Rep r), GParseRecord (Rep r), Generic
 class CsvMapped r where
   csvMap :: CsvMap r
 
-class GSelectorList (f :: * -> *) where
+class GSelectorList f where
   gSelectorList :: Proxy f -> [String]
 
 instance GSelectorList f => GSelectorList (M1 D t f) where
@@ -144,8 +158,8 @@ preParser _ header = do
   records <- CP.csv C.defaultDecodeOptions
   pure (selectorOrder, records)
   where selectors = gSelectorList (Proxy @(Rep a))
-        positionOf hdr (i, fieldHeader := FieldMapping sel _) = do
-          selectorIndex <- elemIndex sel selectors ?! ("Record type doesn't have selector " <> sel)
+        positionOf hdr (i, fieldHeader := fm) = do
+          selectorIndex <- elemIndex (selector fm) selectors ?! ("Record type doesn't have selector " <> selector fm)
           headerIndex <- case header of
             WithHeader -> V.elemIndex fieldHeader hdr ?! ("Couldn't find header item " <> show fieldHeader <> " in CSV header")
             WithoutHeader -> pure i
@@ -162,10 +176,10 @@ mkCsvMap = CsvMap . V.fromList
 newtype CsvRecord a = CsvRecord a
 
 instance CsvMapped r => C.ToRecord (CsvRecord r) where
-  toRecord (CsvRecord a) = (\(_ := FieldMapping _ getField) -> C.toField $ getField a) <$> unCsvMap csvMap
+  toRecord (CsvRecord a) = (\(_ := fm) -> (C.toField . toEncodable fm) a) <$> unCsvMap csvMap
 
 instance CsvMapped r => C.ToNamedRecord (CsvRecord r) where
-  toNamedRecord (CsvRecord a) = V.foldr' (\(name := FieldMapping _ getField) -> HM.insert name (C.toField $ getField a)) HM.empty (unCsvMap csvMap)
+  toNamedRecord (CsvRecord a) = V.foldr' (\(name := fm) -> HM.insert name (C.toField . toEncodable fm $ a)) HM.empty (unCsvMap csvMap)
 
 instance CsvMapped r => C.DefaultOrdered (CsvRecord r) where
   headerOrder _ = header (Proxy @r)
