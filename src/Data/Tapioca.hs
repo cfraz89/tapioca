@@ -43,6 +43,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as C
 import qualified Data.Csv.Parser as CP
 import qualified Data.Csv.Builder as CB
+import Data.Functor.Contravariant
 import Data.List
 import Data.Maybe
 import Data.Proxy
@@ -65,18 +66,30 @@ import qualified Data.HashMap.Strict as HM
 (?!) :: Maybe a -> String -> Parser a
 mb ?! err = maybe (fail err) pure mb
 
-instance (HasField x r a, KnownSymbol x, C.ToField a) => IsLabel x (Mapping r) where
-  fromLabel = Mapping (symbolVal' (proxy# :: Proxy# x)) (getField @x)
+instance (HasField x r f, KnownSymbol x, C.ToField f) => IsLabel x (FieldMapping r f) where
+  fromLabel = FieldMapping (symbolVal' (proxy# :: Proxy# x)) (getField @x)
 
-data Mapping r = forall f. C.ToField f => Mapping String (r -> f)
+-- Initially expose our field type so that it can be mapped over
+data FieldMapping r f = FieldMapping String (r -> f)
 
-instance Show (Mapping r) where
-  show (Mapping field get) = "Mapping " <> field
+instance Functor (FieldMapping r) where
+  fmap f (FieldMapping sel encodeField) = FieldMapping sel (f . encodeField)
+
+instance Show (FieldMapping r f) where
+  show (FieldMapping field get) = "Mapping " <> field <> " (r -> f)"
 
 infixl 0 :=
-data FieldMapping r = B.ByteString := Mapping r
+data NamedFieldMapping r = forall f. C.ToField f => B.ByteString := FieldMapping r f
+
+instance Show (NamedFieldMapping r) where
+  show (name := fm) = show name <> " := " <> show fm
+
+newtype CsvMap r = CsvMap { unCsvMap :: V.Vector (NamedFieldMapping r) }
   deriving Show
-type CsvMap r = V.Vector (FieldMapping r)
+
+instance Contravariant CsvMap where
+  contramap f (CsvMap mappings) = CsvMap $ contraMapping <$> mappings
+    where contraMapping (name := FieldMapping sel getField) = name := FieldMapping sel (getField . f)
 
 data SelProxy t f a = SelProxy
 
@@ -126,12 +139,12 @@ instance (GIndexedParseRecord a, GIndexedParseRecord b) => GIndexedParseRecord (
 preParser :: forall a. (CsvMapped a, GenericCsvDecode a) => Proxy a -> Header -> Parser (V.Vector Int, C.Csv)
 preParser _ header = do
   hdr <- CP.header . fromIntegral . fromEnum $ ','
-  selectorMapping <- traverse (positionOf hdr) (V.indexed $ csvMap @a)
+  selectorMapping <- traverse (positionOf hdr) (V.indexed . unCsvMap $ csvMap @a)
   let selectorOrder = V.update (V.replicate (length selectorMapping) 0) selectorMapping
   records <- CP.csv C.defaultDecodeOptions
   pure (selectorOrder, records)
   where selectors = gSelectorList (Proxy @(Rep a))
-        positionOf hdr (i, fieldHeader := Mapping sel _) = do
+        positionOf hdr (i, fieldHeader := FieldMapping sel _) = do
           selectorIndex <- elemIndex sel selectors ?! ("Record type doesn't have selector " <> sel)
           headerIndex <- case header of
             WithHeader -> V.elemIndex fieldHeader hdr ?! ("Couldn't find header item " <> show fieldHeader <> " in CSV header")
@@ -143,16 +156,16 @@ decode header bs = do
    (selectorOrder, csv) <- parseOnly (preParser (Proxy @a) header) bs
    C.runParser $ traverse ((to <$>) . gParseRecord selectorOrder) csv
 
-mkCsvMap :: [FieldMapping r] -> V.Vector (FieldMapping r)
-mkCsvMap = V.fromList
+mkCsvMap :: [NamedFieldMapping r] -> CsvMap r
+mkCsvMap = CsvMap . V.fromList
 
 newtype CsvRecord a = CsvRecord a
 
 instance CsvMapped r => C.ToRecord (CsvRecord r) where
-  toRecord (CsvRecord a) = (\(_ := Mapping _ getField) -> C.toField $ getField a) <$> csvMap
+  toRecord (CsvRecord a) = (\(_ := FieldMapping _ getField) -> C.toField $ getField a) <$> unCsvMap csvMap
 
 instance CsvMapped r => C.ToNamedRecord (CsvRecord r) where
-  toNamedRecord (CsvRecord a) = V.foldr' (\(name := Mapping _ getField) -> HM.insert name (C.toField $ getField a)) HM.empty csvMap
+  toNamedRecord (CsvRecord a) = V.foldr' (\(name := FieldMapping _ getField) -> HM.insert name (C.toField $ getField a)) HM.empty (unCsvMap csvMap)
 
 instance CsvMapped r => C.DefaultOrdered (CsvRecord r) where
   headerOrder _ = header (Proxy @r)
@@ -172,7 +185,7 @@ encode withHeader items = BL.toStrict . BB.toLazyByteString $ case withHeader of
 
 -- | We export this since IMO Proxy is nicer than undefined
 header :: forall r. CsvMapped r => Proxy r -> V.Vector B.ByteString
-header _= (\(name := _) -> name) <$> csvMap @r
+header _= (\(name := _) -> name) <$> unCsvMap (csvMap @r)
 
 data TestRecord = TestRecord
   { field1 :: Int
