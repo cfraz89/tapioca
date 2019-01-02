@@ -67,16 +67,55 @@ fromCSV = decode WithHeader
 
 We see here that tapioca provides us with a more succinct definition for defining CSV mappings, avoiding any unnecessary duplication, and keeping the entire definition within a single typeclass.
 
-## How?
-The trick here is that #field1 and #field2 are OverloadedLabels which create a Mapping data object each.
-Each mapping object uses 
-  - The HasField typeclass to store an accessor to the field, eg `MyRecord -> Int` or `MyRecord -> String`. 
-  - This can then infer IsLabel, and we can store the name of the field selector. Generics are then used to match up the associated field headers with the correct selectors when decoding a csv.
+## Usage
+As seen earlier, the key part of using cassava is to define an instance of `CsvMapped` for your type:
 
 ```haskell
-instance (HasField x r a, KnownSymbol x, C.ToField a) => IsLabel x (Mapping r) where
-  fromLabel = Mapping (symbolVal' (proxy# :: Proxy# x)) (getField @x)
+instance CsvMapped MyRecord where
+  csvMap = mkCsvMap
+    [ "Header for Field 1" := #field1
+    , "Header for Field 2" := #field2
+    ]
+```
 
-data FieldMapping r = B.ByteString := Mapping r
-data Mapping r = forall f. C.ToField f => Mapping String (r -> f)
+If you wish to map how a field is encoded, you can use the `encoder` function
+
+```haskell
+asOrdinal :: Int -> String
+asOrdinal 1 = "First"
+asOrdinal 2 = "Second"
+asOrdinal 3 = "Third"
+asOrdinal x = show x
+
+instance CsvMapped MyRecord where
+  csvMap = mkCsvMap
+    [ "Header for Field 1" := encoder asOrdinal #field1
+    , "Header for Field 2" := #field2
+    ]
+```
+
+Likewise, you may wish to alter how a field is decoded. For this you can use `decoder`:
+
+```haskell
+fromOrdinal :: String -> Int
+fromOrdinal "First" = 1
+fromOrdinal "Second" = 2
+asOrdinal "Third" = 3
+asOrdinal x = read x
+
+instance CsvMapped MyRecord where
+  csvMap = mkCsvMap
+    [ "Header for Field 1" := decoder fromOrdinal #field1
+    , "Header for Field 2" := #field2
+    ]
+```
+
+If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `codec`:
+
+```haskell
+instance CsvMapped MyRecord where
+  csvMap = mkCsvMap
+    [ "Header for Field 1" := codec toOrdinal fromOrdinal #field1
+    , "Header for Field 2" := #field2
+    ]
 ```
