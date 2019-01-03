@@ -1,17 +1,12 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
 module Data.Tapioca.Types 
@@ -60,7 +55,7 @@ data FieldMapping r f e d = FieldMapping
   , decoder :: d -> f
   }
 
-instance (HasField x r f, KnownSymbol (x :: Symbol), f ~ d, f ~ e) => IsLabel x (FieldMapping r f e d) where
+instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f e d) where
   fromLabel = FieldMapping (symbolVal @x Proxy) (getField @x) id
 
 instance Show (FieldMapping r f e d) where

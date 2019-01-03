@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Data.Tapioca.Example.Data where
 
 import qualified Data.ByteString as B

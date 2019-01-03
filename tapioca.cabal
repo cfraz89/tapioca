@@ -15,11 +15,27 @@ source-repository head
   type: git
   location: https://github.com/cfraz89/tapioca.git
 
+library example
+    exposed-modules:
+        Data.Tapioca.Example.Examples
+    other-modules:
+        Data.Tapioca.Example.Data,
+        Data.Tapioca.Example.Types
+    hs-source-dirs: example
+    default-language: Haskell2010
+    ghc-options: -Wall
+    build-depends:
+        base >=4.10.0 && < 1000,
+        tapioca,
+        bytestring -any,
+        vector -any
+
 library
     exposed-modules:
         Data.Tapioca
     other-modules:
         Data.Tapioca.Types,
+        Data.Tapioca.Internal.Encode,
         Data.Tapioca.Internal.Decode
         Data.Tapioca.Internal.Decode.Generic
     hs-source-dirs: src
