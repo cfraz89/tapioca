@@ -1,23 +1,18 @@
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | This module provides support for easier encoding to CSV via the CsvMapped typeclass.
 
@@ -32,31 +27,31 @@ module Data.Tapioca
   , Header(..)
   , encode
   , decode
-  , encoder
-  , decoder
-  , codec
+  , mapEncoder
+  , mapDecoder
+  , mapCodecs
   ) where
 
 import GHC.Generics
 import GHC.OverloadedLabels
 import GHC.TypeLits
-import GHC.Exts
 import GHC.Records
 
+import Control.Error.Util
 import Data.Attoparsec.ByteString
-import qualified Data.Attoparsec.Internal.Types as A
 import qualified Data.Binary.Builder as BB
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as C
 import qualified Data.Csv.Parser as CP
 import qualified Data.Csv.Builder as CB
--- import Data.Functor.Contravariant
 import Data.List
 import Data.Proxy
 import qualified Data.Vector as V
 import Data.Vector ((!))
 import qualified Data.HashMap.Strict as HM
+import Type.Reflection
+import Data.Type.Equality
 
 -- $example
 -- > data TestItem = TestItem
@@ -70,11 +65,8 @@ import qualified Data.HashMap.Strict as HM
 -- >    , "field2" := #field2
 -- >    ]
 
-(?!) :: Maybe a -> String -> Parser a
-mb ?! err = maybe (fail err) pure mb
-
 instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f e d) where
-  fromLabel = FieldMapping (symbolVal' (proxy# :: Proxy# x)) (getField @x) id
+  fromLabel = FieldMapping (symbolVal @x Proxy) (getField @x) id
 
 -- Initially expose our field type so that it can be mapped over
 -- r - Record type
@@ -83,27 +75,26 @@ instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMappin
 -- g - Type to decode as
 data FieldMapping r f e d = FieldMapping
   { selector :: String
-  , toEncodable :: r -> e
-  , fromDecodable :: d -> f
+  , encoder :: r -> e
+  , decoder :: d -> f
   }
 
 -- Esentially Functor instance
-encoder :: (e -> x) -> FieldMapping r f e d -> FieldMapping r f x d
-encoder f fm = fm { toEncodable = f . toEncodable fm }
+mapEncoder :: (e -> x) -> FieldMapping r f e d -> FieldMapping r f x d
+mapEncoder f fm = fm { encoder = f . encoder fm }
 
-decoder :: (x -> d) -> FieldMapping r f e d -> FieldMapping r f e x
-decoder f fm = fm { fromDecodable = fromDecodable fm . f }
+mapDecoder :: (x -> d) -> FieldMapping r f e d -> FieldMapping r f e x
+mapDecoder f fm = fm { decoder = decoder fm . f }
 
-codec :: (e -> x) -> (y -> d) -> FieldMapping r f e d -> FieldMapping r f x y
-codec enc dec = encoder enc . decoder dec
+mapCodecs :: (e -> x) -> (y -> d) -> FieldMapping r f e d -> FieldMapping r f x y
+mapCodecs enc dec = mapEncoder enc . mapDecoder dec
 
 instance Show (FieldMapping r f e d) where
   show fm = "Mapping " <> selector fm <> " (r -> f) (g -> f)"
 
 infixl 0 :=
-data SelectorMapping r = forall f e d. (C.ToField e, C.FromField d) => B.ByteString := FieldMapping r f e d
-                       | forall f e d. (GenericCsvDecode f, CsvMapped f, CsvMapped e, CsvMapped d) => Splice (FieldMapping r f e d)
-
+data SelectorMapping r = forall f e d. (C.ToField e, C.FromField d, Typeable f) => B.ByteString := FieldMapping r f e d
+                       | forall f e d. (GenericCsvDecode d, Typeable f, CsvMapped f, CsvMapped e, CsvMapped d) => Splice (FieldMapping r f e d)
 
 instance Show (SelectorMapping r) where
   show (name := fm) = show name <> " := " <> show fm
@@ -111,10 +102,6 @@ instance Show (SelectorMapping r) where
 
 newtype CsvMap r = CsvMap { unCsvMap :: V.Vector (SelectorMapping r) }
   deriving (Show, Semigroup, Monoid)
-
--- instance Contravariant CsvMap where
---   contramap f (CsvMap mappings) = CsvMap $ contraMapping <$> mappings
---     where contraMapping (name := FieldMapping{..}) = name := FieldMapping selector (toEncodable . f) fromDecodable
 
 data SelProxy t f a = SelProxy
 
@@ -125,87 +112,96 @@ class CsvMapped r where
   csvMap :: CsvMap r
 
 class GSelectorList f where
-  gSelectorList :: Proxy f -> [String]
+  gSelectorList :: [String]
 
 instance GSelectorList f => GSelectorList (M1 D t f) where
-  gSelectorList _ = gSelectorList (Proxy @f)
+  gSelectorList = gSelectorList @f
 
 instance GSelectorList f => GSelectorList (M1 C t f) where
-  gSelectorList _ = gSelectorList (Proxy @f)
+  gSelectorList = gSelectorList @f
 
 instance Selector t => GSelectorList (M1 S t f) where
-  gSelectorList _ = [selName (SelProxy @t @f)]
+  gSelectorList = [selName (SelProxy @t @f)]
 
 instance (GSelectorList a, GSelectorList b) => GSelectorList (a :*: b) where
-  gSelectorList _ = gSelectorList (Proxy @a) <> gSelectorList (Proxy @b)
+  gSelectorList = gSelectorList @a <> gSelectorList @b
 
 class GParseRecord f where
-  gParseRecord :: Int -> V.Vector SelectorPos -> C.Record -> C.Parser (Int, f p)
+  gParseRecord :: V.Vector SelectorMeta -> C.Record -> C.Parser (f p)
+
+class GParseSelector f where
+  gParseSelector :: Int -> V.Vector SelectorMeta -> C.Record -> C.Parser (Int, f p)
 
 instance GParseRecord f => GParseRecord (M1 D t f) where
-  gParseRecord i selectorPoss record = (\(i, r) -> (i, M1 r)) <$> gParseRecord i selectorPoss record
+  gParseRecord selectorMetas record = M1 <$> gParseRecord selectorMetas record
 
-instance GParseRecord f => GParseRecord (M1 C t f) where
-  gParseRecord i selectorPoss record = (\(i, r) -> (i, M1 r)) <$> gParseRecord i selectorPoss record
+instance GParseSelector f => GParseRecord (M1 C t f) where
+  gParseRecord selectorMetas record = M1 . snd <$> gParseSelector 0 selectorMetas record
 
-instance ParseSelector a => GParseRecord (M1 S m (K1 i a)) where
-  gParseRecord i selectorPoss record = (\(i, r) -> (i, M1 . K1 $ r)) <$> parseSelector i selectorPoss record
+instance Typeable a => GParseSelector (M1 S m (K1 i a)) where
+  gParseSelector i selectorMetas record = fmap (M1 . K1) . (succ i,) <$> parseSelector (selectorMetas ! i) record
 
-class ParseSelector a where
-  parseSelector :: Int -> V.Vector SelectorPos -> C.Record -> C.Parser (Int, a)
-  default parseSelector GenericCsvDecode a => Int -> V.Vector SelectorPos -> C.Record -> C.Parser (Int, a)
-  parseSelector i poss record = do
-    (length, rep) <- gParseRecord 0 poss record
-    pure (i + length, to rep)
+parseSelector :: forall a. Typeable a => SelectorMeta -> C.Record -> C.Parser a
+parseSelector (Field tr pos decodeMapper) record
+  | Just Refl <- testEquality tr (typeRep @a) = decodeMapper <$> C.parseField (record ! pos)
+parseSelector (Record tr metas decodeMapper) record
+  | Just Refl <- testEquality tr (typeRep @a) = decodeMapper . to <$> gParseRecord metas record
+parseSelector _ _ = fail "Type mismatch. This shouldn't happen!"
 
-instance C.FromField a => ParseSelector a where
-  parseSelector i poss record =  case poss ! i of
-    Field pos -> (\v -> (i+1, v)) <$> C.parseField (record ! pos)
-    _ -> fail "Need generic"
-
-instance (GParseRecord a, GParseRecord b) => GParseRecord (a :*: b) where
-  gParseRecord i selectorOrder record = do
-    (ia, a) <- gParseRecord i selectorOrder record
-    (ib, b) <- gParseRecord ia selectorOrder record
+instance (GParseSelector a, GParseSelector b) => GParseSelector (a :*: b) where
+  gParseSelector i selectorMetas record = do
+    (ia, a) <- gParseSelector i selectorMetas record
+    (ib, b) <- gParseSelector ia selectorMetas record
     pure (ib, a :*: b)
 
-data SelectorPos = Field Int
-                 | Record (V.Vector SelectorPos)
-type IndexedSelectorPos = (Int, SelectorPos)
+data SelectorMeta = forall f d. (C.FromField d, Typeable f) => Field (TypeRep f) Int (d -> f)
+                 | forall r d. (GenericCsvDecode d, Typeable r) => Record (TypeRep r) (V.Vector SelectorMeta) (d -> r)
 
-preParser :: forall a. (CsvMapped a, GenericCsvDecode a) => Proxy a -> Header -> Parser (V.Vector SelectorPos, C.Csv)
-preParser _ useHeader = do
+instance Show SelectorMeta where
+  show (Field _ i _) = "Field " <> show i
+  show (Record _ sms _) = "Record " <> show sms
+type IndexedSelectorMeta = (Int, SelectorMeta)
+
+-- Parse the required data from the csv file
+csvParser :: forall a. (CsvMapped a, GenericCsvDecode a) => Header -> Parser (Maybe (V.Vector B.ByteString), C.Csv)
+csvParser useHeader = do
   hdr <- case useHeader of
     WithHeader -> Just <$> (CP.header . fromIntegral . fromEnum) ','
     WithoutHeader -> pure Nothing
-  order <- selectorOrder @a Proxy hdr
   records <- CP.csv C.defaultDecodeOptions
-  pure (order, records)
+  pure (hdr, records)
 
-selectorOrder :: forall a. (CsvMapped a, GenericCsvDecode a) => Proxy a -> Maybe (V.Vector B.ByteString) -> Parser (V.Vector SelectorPos)
-selectorOrder _ hdr = do
-  selectorMapping <- traverse (positionOf hdr) (V.indexed . unCsvMap $ csvMap @a)
-  pure $ V.update (V.replicate (length selectorMapping) $ Field 0) selectorMapping
+-- Used for decoding
+pSelectorMetas :: forall a. (CsvMapped a, GenericCsvDecode a) => Maybe (V.Vector B.ByteString) -> Either String (V.Vector SelectorMeta)
+pSelectorMetas hdr = do
+  selectorMetasUnordered <- traverse (positionOf hdr) (V.indexed . unCsvMap $ csvMap @a)
+  pure $ V.update (snd <$> selectorMetasUnordered) selectorMetasUnordered
 
-positionOf :: forall r. GenericCsvDecode r => Maybe (V.Vector B.ByteString) -> (Int, SelectorMapping r) -> A.Parser B.ByteString IndexedSelectorPos
+infixl 1 ?!
+(?!) :: Maybe a -> b -> Either b a
+(?!) = flip note
+
+-- For decoding. With selector mapping determine correct position within csv/header list, and attach metadata necessary to construct from generic
+positionOf :: forall r. GenericCsvDecode r => Maybe (V.Vector B.ByteString) -> (Int, SelectorMapping r) -> Either String IndexedSelectorMeta
 positionOf mbHdr (i, selectorMapping) = do
-  let selectors = gSelectorList (Proxy @(Rep r))
+  let selectors = gSelectorList @(Rep r)
   case selectorMapping of
-    fieldHeader := fm -> do
-      selectorIndex <- elemIndex (selector fm) selectors ?! ("Record type doesn't have selector " <> selector fm)
+    fieldHeader := (fm :: FieldMapping r f e d) -> do
+      selectorIndex <- elemIndex (selector fm) selectors ?! "Record type doesn't have selector " <> selector fm
       headerIndex <- case mbHdr of
-        Just hdr -> V.elemIndex fieldHeader hdr ?! ("Couldn't find header item " <> show fieldHeader <> " in CSV header")
+        Just hdr -> V.elemIndex fieldHeader hdr ?! "Couldn't find header item " <> show fieldHeader <> " in CSV header"
         Nothing -> pure i
-      pure (selectorIndex, Field headerIndex)
+      pure (selectorIndex, Field @f @d typeRep headerIndex (decoder fm))
     Splice (fm :: FieldMapping r f e d) -> do
-      selectorIndex <- elemIndex (selector fm) selectors ?! ("Record type doesn't have selector " <> selector fm)
-      recordPositions <- selectorOrder @f Proxy mbHdr
-      pure (selectorIndex, Record recordPositions)
+      selectorIndex <- elemIndex (selector fm) selectors ?! "Record type doesn't have selector " <> selector fm
+      selectorMetas <- pSelectorMetas @d mbHdr
+      pure (selectorIndex, Record @f @d typeRep selectorMetas (decoder fm))
 
 decode :: forall a. (CsvMapped a, GenericCsvDecode a) => Header -> B.ByteString -> Either String (V.Vector a)
-decode hdr bs = do
-   (order, csv) <- parseOnly (preParser @a Proxy hdr) bs
-   C.runParser $ traverse ((to . snd <$>) . gParseRecord 0 order) csv
+decode useHeader bs = do
+   (mbHdr, csv) <- parseOnly (csvParser @a useHeader) bs
+   selectorMetas <- pSelectorMetas @a mbHdr
+   C.runParser $ traverse ((to <$>) . gParseRecord selectorMetas) csv
 
 mkCsvMap :: [SelectorMapping r] -> CsvMap r
 mkCsvMap = CsvMap . V.fromList
@@ -214,14 +210,14 @@ newtype CsvRecord a = CsvRecord a
 
 instance CsvMapped r => C.ToRecord (CsvRecord r) where
   toRecord (CsvRecord a) = V.concatMap toFields (unCsvMap csvMap)
-    where toFields (_ := fm) = pure . C.toField . toEncodable fm $ a
-          toFields (Splice fm) = C.toRecord . CsvRecord $ toEncodable fm a
+    where toFields (_ := fm) = pure . C.toField . encoder fm $ a
+          toFields (Splice fm) = C.toRecord . CsvRecord $ encoder fm a
 
 instance CsvMapped r => C.ToNamedRecord (CsvRecord r) where
-  toNamedRecord (CsvRecord a) = V.foldr' (\(name := fm) -> HM.insert name (C.toField . toEncodable fm $ a)) HM.empty (unCsvMap csvMap)
+  toNamedRecord (CsvRecord a) = V.foldr' (\(name := fm) -> HM.insert name (C.toField . encoder fm $ a)) HM.empty (unCsvMap csvMap)
 
 instance CsvMapped r => C.DefaultOrdered (CsvRecord r) where
-  headerOrder _ = header (Proxy @r)
+  headerOrder _ = header @r
 
 -- | When encoding, whether or not to write the header row
 -- When decoding, whether or not the csv being decoded contains a header row
@@ -232,64 +228,11 @@ data Header = WithHeader | WithoutHeader
 -- | Encode a list of items using our mapping
 encode :: forall r. CsvMapped r => Header -> [r] -> B.ByteString
 encode withHeader items = BL.toStrict . BB.toLazyByteString $ case withHeader of
-  WithHeader -> CB.encodeHeader (header (Proxy @r)) <> recordItems
+  WithHeader -> CB.encodeHeader (header @r) <> recordItems
   WithoutHeader -> recordItems
   where recordItems = foldr ((<>) . CB.encodeRecord . CsvRecord) mempty items
 
-header :: forall r. CsvMapped r => Proxy r -> V.Vector B.ByteString
-header _ = V.concatMap names $ unCsvMap (csvMap @r)
+header :: forall r. CsvMapped r => V.Vector B.ByteString
+header = V.concatMap names $ unCsvMap (csvMap @r)
   where names (name := _) = pure name
-        names (Splice (_ :: FieldMapping r f e d)) = header @f Proxy
-
-data TestRecord = TestRecord
-  { field1 :: Int
-  , field2 :: String
-  , field3 :: Maybe Int
-  }
-  deriving (Show, Generic)
-
-data TestRecord2 = TestRecord2
-  { testRecord :: TestRecord
-  , other :: Int
-  }
-  deriving (Show, Generic)
-
--- asOrdinal :: Int -> String
--- asOrdinal 0 = "Zeroth?" 
--- asOrdinal 1 = "First"
--- asOrdinal 2 = "Second"
--- asOrdinal 3 = "Third"
--- asOrdinal x = "Other: " <> show x
-
-instance CsvMapped TestRecord where
- csvMap = mkCsvMap
-   [ "Sample Field 1" := #field1
-   , "Sample Field 3" := #field3
-   , "Sample Field 2" := #field2
-   ]
-
-instance CsvMapped TestRecord2 where
-  csvMap = mkCsvMap
-    [ Splice #testRecord
-    , "Other" := #other
-    ]
-
--- testCsv :: B.ByteString
--- testCsv = "Sample Field 1,Sample Field 2,Sample Field 3\n9,testField,9"
-
-testRecord2 :: B.ByteString
-testRecord2 = "Sample Field 1,Sample Field 3,Sample Field 2,Other\r\n1,3,This is field 2,4\r\n"
-
--- testCsvNoHeader :: B.ByteString
--- testCsvNoHeader = "1,8,testField2\n42,10,sample data"
-
-testItems :: [TestRecord]
-testItems = 
-  [ TestRecord 1 "This is field 2" (Just 3)
-  , TestRecord 2 "This is field 2 again" (Just 6)
-  ]
-
-testItems2 :: [TestRecord2]
-testItems2 = 
-  [ TestRecord2 (TestRecord 1 "This is field 2" (Just 3)) 4
-  ]
+        names (Splice (_ :: FieldMapping r f e d)) = header @f

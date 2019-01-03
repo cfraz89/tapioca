@@ -78,7 +78,7 @@ instance CsvMapped MyRecord where
     ]
 ```
 
-If you wish to map how a field is encoded, you can use the `encoder` function
+If you wish to map how a field is encoded, you can use the `mapEncoder` function
 
 ```haskell
 asOrdinal :: Int -> String
@@ -89,12 +89,12 @@ asOrdinal x = show x
 
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := encoder asOrdinal #field1
+    [ "Header for Field 1" := mapEncoder asOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
-Likewise, you may wish to alter how a field is decoded. For this you can use `decoder`:
+Likewise, you may wish to alter how a field is decoded. For this you can use `mapDecoder`:
 
 ```haskell
 fromOrdinal :: String -> Int
@@ -105,17 +105,17 @@ asOrdinal x = read x
 
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := decoder fromOrdinal #field1
+    [ "Header for Field 1" := mapDecoder fromOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
-If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `codec`:
+If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `mapCodecs`:
 
 ```haskell
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := codec toOrdinal fromOrdinal #field1
+    [ "Header for Field 1" := mapCodecs toOrdinal fromOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
