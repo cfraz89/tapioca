@@ -25,7 +25,7 @@ data SplicingRecord = SplicingRecord
 
 instance CsvMapped ExampleRecord where
  csvMap = mkCsvMap
-   [ "Sample Field 1" := mapCodecs asOrdinal fromOrdinal #field1
+   [ "Sample Field 1" := mapCodec asOrdinal fromOrdinal #field1
    , "Sample Field 3" := #field3
    , "Sample Field 2" := #field2
    ]

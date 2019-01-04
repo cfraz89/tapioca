@@ -32,6 +32,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv.Builder as CB
 
+-- | A newtype which provides instances for Cassava's ToRecord classes
 newtype CsvRecord a = CsvRecord a
 
 instance CsvMapped r => C.ToRecord (CsvRecord r) where
@@ -45,6 +46,7 @@ instance CsvMapped r => C.ToNamedRecord (CsvRecord r) where
 instance CsvMapped r => C.DefaultOrdered (CsvRecord r) where
   headerOrder _ = header @r
 
+-- | Return a vector of all headers specified by our csv map in order. Nested maps will have their headers spliced inline.
 header :: forall r. CsvMapped r => V.Vector B.ByteString
 header = V.concatMap names $ unCsvMap (csvMap @r)
   where names (name := _) = pure name

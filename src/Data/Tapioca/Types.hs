@@ -65,8 +65,8 @@ instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e, Typeable f, CsvMapped f, 
 instance Show (FieldMapping r f e d) where
   show fm = "Mapping " <> selector fm
 
--- | When encoding, whether or not to write the header row
--- When decoding, whether or not the csv being decoded contains a header row
+-- | When encoding, whether or not to write the header row.\n
+-- When decoding, whether or not the csv being decoded contains a header row.\n
 -- if decoding WithoutHeader, tapioca will map the order of fields in the csv
 -- to the order that fields are specified in the csvMap.
 data Header = WithHeader | WithoutHeader

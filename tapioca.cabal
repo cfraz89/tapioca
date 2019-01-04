@@ -6,7 +6,7 @@ license-file: LICENSE
 maintainer: cfraz89@gmail.com
 author: Christopher Fraser
 synopsis: A tasty enhancement to cassava for easy csv exporting
-description: tapioca is a package that builds on cassava, to provide a simpler, more succinct method of exporting CSV's with headers.
+description: tapioca is a package that builds on cassava, to provide a simpler, more succinct method of mapping records to and from csv data.
 category: Text, Web, CSV
 extra-source-files:
     examples/Examples.hs

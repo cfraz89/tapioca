@@ -78,7 +78,7 @@ instance CsvMapped MyRecord where
     ]
 ```
 
-If you wish to map how a field is encoded, you can use the `mapEncoder` function
+If you wish to map how a field is encoded, you can use the `mapEncode` function
 
 ```haskell
 asOrdinal :: Int -> String
@@ -89,12 +89,12 @@ asOrdinal x = show x
 
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := mapEncoder asOrdinal #field1
+    [ "Header for Field 1" := mapEncode asOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
-Likewise, you may wish to alter how a field is decoded. For this you can use `mapDecoder`:
+Likewise, you may wish to alter how a field is decoded. For this you can use `mapDecode`:
 
 ```haskell
 fromOrdinal :: String -> Int
@@ -105,23 +105,23 @@ asOrdinal x = read x
 
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := mapDecoder fromOrdinal #field1
+    [ "Header for Field 1" := mapDecode fromOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
-If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `mapCodecs`:
+If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `mapCodec`:
 
 ```haskell
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := mapCodecs toOrdinal fromOrdinal #field1
+    [ "Header for Field 1" := mapCodec toOrdinal fromOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
 ## Splicing maps
-Occasionally you may want to nest a record within a nother record. Provided that both your records implement CsvMapped, this can be done by simply using the field selector of the inner record in the desired position:
+Occasionally you may want to nest a record within another record. Provided that both your records implement CsvMapped, this can be done by simply using the field selector of the inner record in the desired position:
 
 ```haskell
 data SplicingRecord = SplicingRecord

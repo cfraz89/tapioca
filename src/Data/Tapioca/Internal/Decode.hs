@@ -74,6 +74,7 @@ positionOf mbHdr (i, selectorMapping) = do
       selectorMetas <- pSelectorMetas @d mbHdr
       pure (selectorIndex, Record @f @d typeRep selectorMetas (decoder fm))
 
+-- | Decode a CSV String. If there is an error parsion, error message is returned on the left
 decode :: forall a. (CsvMapped a, GenericCsvDecode a) => Header -> B.ByteString -> Either String (V.Vector a)
 decode useHeader bs = do
    (mbHdr, csv) <- parseOnly (csvParser @a useHeader) bs
