@@ -9,7 +9,7 @@ synopsis: A tasty enhancement to cassava for easy csv exporting
 description: tapioca is a package that builds on cassava, to provide a simpler, more succinct method of exporting CSV's with headers.
 category: Text, Web, CSV
 extra-source-files:
-    examples/*.hs
+    examples/Examples.hs
     CHANGELOG.md
     README.md
 

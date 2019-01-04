@@ -1,12 +1,57 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 import Data.Tapioca
 
-import Data.Tapioca.Example.Types
+import GHC.Generics
+import Type.Reflection
+import qualified Data.ByteString.Char8 as B
+
+data ExampleRecord = ExampleRecord
+  { field1 :: Int
+  , field2 :: String
+  , field3 :: Maybe Int
+  }
+  deriving (Show, Generic, Typeable)
+
+data SplicingRecord = SplicingRecord
+  { exampleRecord :: ExampleRecord
+  , other :: Int
+  }
+  deriving (Show, Generic)
+
+instance CsvMapped ExampleRecord where
+ csvMap = mkCsvMap
+   [ "Sample Field 1" := mapCodecs asOrdinal fromOrdinal #field1
+   , "Sample Field 3" := #field3
+   , "Sample Field 2" := #field2
+   ]
+   where asOrdinal = \case
+           0 -> "Zeroth?" 
+           1 -> "First"
+           2 -> "Second"
+           3 -> "Third"
+           x -> show x
+
+         fromOrdinal = \case
+           "Zeroth?" -> 0
+           "First"   -> 1
+           "Second"  -> 2
+           "Third"   -> 3
+           x         -> read x
+
+instance CsvMapped SplicingRecord where
+  csvMap = mkCsvMap
+    [ #exampleRecord
+    , "Other" := #other
+    ]
 
 main :: IO ()
 main = do
+  putStrLn mempty
   ----------- Basic Encode Example
   let exampleRecords = 
         [ ExampleRecord 1 "This is field 2" (Just 3)
@@ -14,8 +59,7 @@ main = do
         ]
 
   putStrLn "Encode Example Records ----------------"
-  print $ encode WithHeader exampleRecords
-  putStrLn mempty
+  putStrLn . B.unpack $ encode WithHeader exampleRecords
 
   ------------ Basic Decode Example
   let exampleCsv = "Sample Field 1,Sample Field 2,Sample Field 3\r\n" 
@@ -40,8 +84,7 @@ main = do
         ]
 
   putStrLn "Encode Example Splicing Records--------"
-  print $ encode WithHeader exampleSplicingRecords
-  putStrLn mempty
+  putStrLn . B.unpack $ encode WithHeader exampleSplicingRecords
 
   ----------- Decode spliced records
   let exampleSplicedCsv = "Sample Field 1,Sample Field 3,Sample Field 2,Other\r\n"
@@ -49,3 +92,4 @@ main = do
   putStrLn "Decode Example Spliced CSV ------------"
   print $ decode @SplicingRecord WithHeader exampleSplicedCsv
   putStrLn mempty
+

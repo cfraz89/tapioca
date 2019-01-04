@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Tapioca.Types 
   ( CsvMap(..)
@@ -57,6 +58,9 @@ data FieldMapping r f e d = FieldMapping
 
 instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f e d) where
   fromLabel = FieldMapping (symbolVal @x Proxy) (getField @x) id
+
+instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f) => IsLabel x (SelectorMapping r) where
+  fromLabel = Splice $ FieldMapping (symbolVal @x Proxy) (getField @x) (id :: d -> f)
 
 instance Show (FieldMapping r f e d) where
   show fm = "Mapping " <> selector fm
