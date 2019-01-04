@@ -119,3 +119,21 @@ instance CsvMapped MyRecord where
     , "Header for Field 2" := #field2
     ]
 ```
+
+## Splicing maps
+Occasionally you may want to nest a record within a nother record. Provided that both your records implement CsvMapped, this can be done by simply using the field selector of the inner record in the desired position:
+
+```haskell
+data SplicingRecord = SplicingRecord
+  { exampleRecord :: ExampleRecord
+  , other :: Int
+  }
+  deriving (Show, Generic)
+
+instance CsvMapped SplicingRecord where
+  csvMap = mkCsvMap
+    [ #exampleRecord
+    , "Other" := #other
+    ]
+```
+Then in this example, for each row, the fields of ExampleRecord will precede the "Other" column field. Note that when decoding a spliced CSV with Headers, order of each field of ExampleRecord within the row is inferred from the order of the CSV headers. It is not required that the CSV's ExampleRecord columns are contiguous.
