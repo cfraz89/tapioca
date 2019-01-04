@@ -63,13 +63,13 @@ positionOf :: forall r. GenericCsvDecode r => Maybe (V.Vector B.ByteString) -> (
 positionOf mbHdr (i, selectorMapping) = do
   let selectors = gSelectorList @(Rep r)
   case selectorMapping of
-    fieldHeader := (fm :: FieldMapping r f e d) -> do
+    fieldHeader := (fm :: FieldMapping r f d e) -> do
       selectorIndex <- elemIndex (selector fm) selectors ?! "Record type doesn't have selector " <> selector fm
       headerIndex <- case mbHdr of
         Just hdr -> V.elemIndex fieldHeader hdr ?! "Couldn't find header item " <> show fieldHeader <> " in CSV header"
         Nothing -> pure i
       pure (selectorIndex, Field @f @d typeRep headerIndex (decoder fm))
-    Splice (fm :: FieldMapping r f e d) -> do
+    Splice (fm :: FieldMapping r f d e) -> do
       selectorIndex <- elemIndex (selector fm) selectors ?! "Record type doesn't have selector " <> selector fm
       selectorMetas <- pSelectorMetas @d mbHdr
       pure (selectorIndex, Record @f @d typeRep selectorMetas (decoder fm))

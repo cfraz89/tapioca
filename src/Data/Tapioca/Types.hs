@@ -26,6 +26,7 @@ import GHC.Records
 
 import qualified Data.ByteString as B
 import qualified Data.Csv as C
+import Data.Profunctor
 import Data.Proxy
 import qualified Data.Vector as V
 import Type.Reflection
@@ -38,8 +39,8 @@ newtype CsvMap r = CsvMap { unCsvMap :: V.Vector (SelectorMapping r) }
   deriving (Show, Semigroup, Monoid)
 
 infixl 0 :=
-data SelectorMapping r = forall f e d. (C.ToField e, C.FromField d, Typeable f) => B.ByteString := FieldMapping r f e d
-                       | forall f e d. (GenericCsvDecode d, Typeable f, CsvMapped f, CsvMapped e, CsvMapped d) => Splice (FieldMapping r f e d)
+data SelectorMapping r = forall f e d. (C.ToField e, C.FromField d, Typeable f) => B.ByteString := FieldMapping r f d e
+                       | forall f e d. (GenericCsvDecode d, Typeable f, CsvMapped f, CsvMapped e, CsvMapped d) => Splice (FieldMapping r f d e)
 
 instance Show (SelectorMapping r) where
   show (name := fm) = show name <> " := " <> show fm
@@ -50,19 +51,23 @@ instance Show (SelectorMapping r) where
 -- f - field type with record
 -- e - type to encode as
 -- g - Type to decode as
-data FieldMapping r f e d = FieldMapping
+data FieldMapping r f d e = FieldMapping
   { selector :: String
   , encoder :: r -> e
   , decoder :: d -> f
   }
 
-instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f e d) where
+instance Profunctor (FieldMapping r f) where
+  rmap f fm = fm { encoder = f . encoder fm }
+  lmap f fm = fm { decoder = decoder fm . f }
+
+instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f d e) where
   fromLabel = FieldMapping (symbolVal @x Proxy) (getField @x) id
 
 instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f) => IsLabel x (SelectorMapping r) where
   fromLabel = Splice $ FieldMapping (symbolVal @x Proxy) (getField @x) (id :: d -> f)
 
-instance Show (FieldMapping r f e d) where
+instance Show (FieldMapping r f d e) where
   show fm = "Mapping " <> selector fm
 
 -- | When encoding, whether or not to write the header row.\n

@@ -19,7 +19,8 @@ module Data.Tapioca
     --   * A bidirectional mapping from header to field selector, or
     --   * The field selector of a record (also implementing 'CsvMapped' to nest
     --
-    -- Each mapping can be mapped in either direction using 'mapEncode', 'mapDecode', or 'mapCodec' for both.
+    -- Each mapping can be mapped in either direction using the `Data.Profunctor` instance functions 'Data.ProFunctor.lmap' to map encoding,
+    -- 'Data.ProFunctor.rmap' to map decoding, or 'Data.ProFunctor.dimap' for both. Refer to examples to see this in practice.
     -- $example-class
 
     -- | == Encoding and decoding
@@ -36,9 +37,6 @@ module Data.Tapioca
   , decode
   , header
   , mkCsvMap
-  , mapEncode
-  , mapDecode
-  , mapCodec
   ) where
 
 import Data.Tapioca.Internal.Decode
@@ -80,18 +78,6 @@ import qualified Data.Vector as V
 -- @
 -- 'decode' @TestItem 'WithHeader' csvByteString
 -- @
-
--- | Map from the encoding type of the field to a new type
-mapEncode :: (e -> x) -> FieldMapping r f e d -> FieldMapping r f x d
-mapEncode f fm = fm { encoder = f . encoder fm }
-
--- | Map from a new decoding type of the field to the existing one
-mapDecode :: (x -> d) -> FieldMapping r f e d -> FieldMapping r f e x
-mapDecode f fm = fm { decoder = decoder fm . f }
-
--- | Map both encode and decode together
-mapCodec :: (e -> x) -> (y -> d) -> FieldMapping r f e d -> FieldMapping r f x y
-mapCodec enc dec = mapEncode enc . mapDecode dec
 
 -- | Construct a CsvMap from a list of mappings
 mkCsvMap :: [SelectorMapping r] -> CsvMap r

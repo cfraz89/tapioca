@@ -50,7 +50,7 @@ instance CsvMapped r => C.DefaultOrdered (CsvRecord r) where
 header :: forall r. CsvMapped r => V.Vector B.ByteString
 header = V.concatMap names $ unCsvMap (csvMap @r)
   where names (name := _) = pure name
-        names (Splice (_ :: FieldMapping r f e d)) = header @f
+        names (Splice (_ :: FieldMapping r f d e)) = header @f
 
 -- | Encode a list of items using our mapping
 encode :: forall r. CsvMapped r => Header -> [r] -> B.ByteString

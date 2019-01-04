@@ -78,44 +78,35 @@ instance CsvMapped MyRecord where
     ]
 ```
 
-If you wish to map how a field is encoded, you can use the `mapEncode` function
+### Mapping selectors
+Field mappings are each a `Profunctor` from `Data.Profunctors`, and mappings of record selectors can be achieved by using the functions `lmap`, `rmap`, and `dimap`
+
+If you wish to map how a field is encoded, you can use `rmap`
 
 ```haskell
-asOrdinal :: Int -> String
-asOrdinal 1 = "First"
-asOrdinal 2 = "Second"
-asOrdinal 3 = "Third"
-asOrdinal x = show x
-
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := mapEncode asOrdinal #field1
+    [ "Header for Field 1" := rmap asOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
-Likewise, you may wish to alter how a field is decoded. For this you can use `mapDecode`:
+Likewise, you may wish to alter how a field is decoded. For this you can use `lmap`:
 
 ```haskell
-fromOrdinal :: String -> Int
-fromOrdinal "First" = 1
-fromOrdinal "Second" = 2
-asOrdinal "Third" = 3
-asOrdinal x = read x
-
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := mapDecode fromOrdinal #field1
+    [ "Header for Field 1" := lmap fromOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
 
-If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `mapCodec`:
+If you would like to keep the mapping consistent between encoding and decoding, you will probably want to specify both mappings. For this use `dimap`:
 
 ```haskell
 instance CsvMapped MyRecord where
   csvMap = mkCsvMap
-    [ "Header for Field 1" := mapCodec toOrdinal fromOrdinal #field1
+    [ "Header for Field 1" := dimap asOrdinal fromOrdinal #field1
     , "Header for Field 2" := #field2
     ]
 ```
