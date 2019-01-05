@@ -21,7 +21,9 @@ library
     exposed-modules:
         Data.Tapioca
     other-modules:
-        Data.Tapioca.Types,
+        Data.Tapioca.Internal.Types,
+        Data.Tapioca.Internal.ByCsvMap,
+        Data.Tapioca.Internal.Common,
         Data.Tapioca.Internal.Encode,
         Data.Tapioca.Internal.Decode
         Data.Tapioca.Internal.Decode.Generic

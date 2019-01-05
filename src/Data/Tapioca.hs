@@ -1,5 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 -- | This module builds on <http://hackage.haskell.org/package/cassava> to provide support for simpler mapping of records to and from CSV.
 -- 
@@ -30,19 +32,33 @@ module Data.Tapioca
 
     CsvMap(..)
   , CsvMapped(..)
-  , CsvRecord(..)
+  , ByCsvMap(..)
   , Header(..)
   , SelectorMapping ((:=))
   , encode
   , decode
+  , toRecord
+  , toNamedRecord
+  , parseRecord
+  , parseNamedRecord
   , header
   , mkCsvMap
   ) where
 
+import Data.Tapioca.Internal.ByCsvMap
+import Data.Tapioca.Internal.Common
 import Data.Tapioca.Internal.Decode
+import Data.Tapioca.Internal.Decode.Generic
 import Data.Tapioca.Internal.Encode
-import Data.Tapioca.Types
+import Data.Tapioca.Internal.Types
 
+import qualified Data.Attoparsec.ByteString as AB
+import qualified Data.Binary.Builder as BB
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Csv as C
+import qualified Data.Csv.Builder as CB
+import qualified Data.Csv.Parser as CP
 import qualified Data.Vector as V
 
 -- $example-record
@@ -82,3 +98,25 @@ import qualified Data.Vector as V
 -- | Construct a CsvMap from a list of mappings
 mkCsvMap :: [SelectorMapping r] -> CsvMap r
 mkCsvMap = CsvMap . V.fromList
+
+-- | Encode a list of items using our mapping
+encode :: forall r. CsvMapped r => Header -> [r] -> B.ByteString
+encode withHeader items = BL.toStrict . BB.toLazyByteString $ case withHeader of
+  WithHeader -> CB.encodeHeader (header @r) <> recordItems
+  WithoutHeader -> recordItems
+  where recordItems = foldMap (CB.encodeRecord . ByCsvMap) items
+
+-- | Decode a CSV String. If there is an error parsion, error message is returned on the left
+decode :: forall r. (CsvMapped r, GenericCsvDecode r) => Header -> B.ByteString -> Either String (V.Vector r)
+decode useHeader csv = C.runParser $ do
+   (mbHdr, record) <- eitherParser $ parseCsv @r csv useHeader
+   traverse (parseRecord mbHdr) record
+
+-- Parse the required data from the csv file
+parseCsv :: forall r. (CsvMapped r, GenericCsvDecode r) => B.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
+parseCsv csv useHeader = flip AB.parseOnly csv $ do
+  hdr <- case useHeader of
+    WithHeader -> Just <$> (CP.header . fromIntegral . fromEnum) ','
+    WithoutHeader -> pure Nothing
+  records <- CP.csv C.defaultDecodeOptions
+  pure (hdr, records)

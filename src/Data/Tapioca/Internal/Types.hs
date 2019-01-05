@@ -3,14 +3,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Data.Tapioca.Types 
+module Data.Tapioca.Internal.Types 
   ( CsvMap(..)
   , CsvMapped(..)
   , SelectorMapping(..)
@@ -58,8 +57,10 @@ data FieldMapping r f d e = FieldMapping
   }
 
 instance Profunctor (FieldMapping r f) where
-  rmap f fm = fm { encoder = f . encoder fm }
-  lmap f fm = fm { decoder = decoder fm . f }
+  dimap d e fm = fm
+    { encoder = e . encoder fm
+    , decoder = decoder fm . d
+    }
 
 instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f d e) where
   fromLabel = FieldMapping (symbolVal @x Proxy) (getField @x) id
@@ -75,4 +76,3 @@ instance Show (FieldMapping r f d e) where
 -- if decoding WithoutHeader, tapioca will map the order of fields in the csv
 -- to the order that fields are specified in the csvMap.
 data Header = WithHeader | WithoutHeader
-
