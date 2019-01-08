@@ -1,3 +1,5 @@
 dist-newstyle
 .ghc.environment.*
+dist
+*#
 *~

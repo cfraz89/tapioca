@@ -13,21 +13,24 @@
 {-# LANGUAGE TupleSections #-}
 
 module Data.Tapioca.Internal.Decode.Generic
-( GenericCsvDecode
-, GSelectorList(..)
-, GParseRecord(..)
-, GParseSelector
-, SelectorMeta(..)
-  ) where 
+  ( GenericCsvDecode
+  , GSelectorList(..)
+  , GParseRecord(..)
+  , GParseNamedRecord(..)
+  , GParseSelector
+  , SelectorMeta(..)
+  ) where
 
 import GHC.Generics
 
+import qualified Data.ByteString as B
 import qualified Data.Csv as C
-import qualified Data.Vector as V
+import qualified Data.HashMap.Strict as HM
 import Data.Type.Equality
+import qualified Data.Vector as V
 import Type.Reflection
 
-type GenericCsvDecode r = (GSelectorList (Rep r), GParseRecord (Rep r), Generic r)
+type GenericCsvDecode r = (GSelectorList (Rep r), GParseRecord (Rep r), GParseNamedRecord (Rep r), Generic r)
 
 data SelProxy t f a = SelProxy
 
@@ -46,37 +49,56 @@ instance Selector t => GSelectorList (M1 S t f) where
 instance (GSelectorList a, GSelectorList b) => GSelectorList (a :*: b) where
   gSelectorList = gSelectorList @a <> gSelectorList @b
 
-data SelectorMeta = forall f d. (C.FromField d, Typeable f) => Field (TypeRep f) Int (d -> f)
-                 | forall r d. (GenericCsvDecode d, Typeable r) => Record (TypeRep r) (V.Vector SelectorMeta) (d -> r)
-
-instance Show SelectorMeta where
-  show (Field _ i _) = "Field " <> show i
-  show (Record _ sms _) = "Record " <> show sms
+-- a is container type used in sub records
+data SelectorMeta = forall f d. (C.FromField d, Typeable f) => Field (TypeRep f) B.ByteString Int (d -> f)
+                  | forall r d. (GenericCsvDecode d, Typeable r) => Record (TypeRep r) (V.Vector SelectorMeta) (d -> r)
 
 class GParseRecord f where
   gParseRecord :: V.Vector SelectorMeta -> C.Record -> C.Parser (f p)
 
 class GParseSelector f where
-  gParseSelector :: Int -> V.Vector SelectorMeta -> C.Record -> C.Parser (Int, f p)
+  gParseSelector :: Int -> V.Vector SelectorMeta -> C.Record -> C.Parser (f p)
 
+class GParseNamedRecord f where
+  gParseNamedRecord :: V.Vector SelectorMeta -> C.NamedRecord -> C.Parser (f p)
+
+class GParseNamedSelector f where
+  gParseNamedSelector :: Int -> V.Vector SelectorMeta -> C.NamedRecord -> C.Parser (f p)
+
+-- For FromRecord
 instance GParseRecord f => GParseRecord (M1 D t f) where
   gParseRecord selectorMetas record = M1 <$> gParseRecord selectorMetas record
 
 instance GParseSelector f => GParseRecord (M1 C t f) where
-  gParseRecord selectorMetas record = M1 . snd <$> gParseSelector 0 selectorMetas record
+  gParseRecord selectorMetas record = M1 <$> gParseSelector 0 selectorMetas record
 
 instance Typeable a => GParseSelector (M1 S m (K1 i a)) where
-  gParseSelector i selectorMetas record = fmap (M1 . K1) . (succ i,) <$> parseSelector (selectorMetas V.! i) record
+  gParseSelector i selectorMetas record = M1 . K1 <$> parseSelector (selectorMetas V.! i)
+    where parseSelector (Field tr _ pos decodeMapper)
+            | Just Refl <- testEquality tr (typeRep @a) = decodeMapper <$> C.parseField (record V.! pos)
+          parseSelector (Record tr metas decodeMapper)
+            | Just Refl <- testEquality tr (typeRep @a) = decodeMapper . to <$> gParseRecord metas record
+          parseSelector _ = fail "Type mismatch. This shouldn't happen!"
 
 instance (GParseSelector a, GParseSelector b) => GParseSelector (a :*: b) where
   gParseSelector i selectorMetas record = do
-    (ia, a) <- gParseSelector i selectorMetas record
-    (ib, b) <- gParseSelector ia selectorMetas record
-    pure (ib, a :*: b)
+    a <- gParseSelector i selectorMetas record
+    b <- gParseSelector (succ i) selectorMetas record
+    pure $ a :*: b
 
-parseSelector :: forall a. Typeable a => SelectorMeta -> C.Record -> C.Parser a
-parseSelector (Field tr pos decodeMapper) record
-  | Just Refl <- testEquality tr (typeRep @a) = decodeMapper <$> C.parseField (record V.! pos)
-parseSelector (Record tr metas decodeMapper) record
-  | Just Refl <- testEquality tr (typeRep @a) = decodeMapper . to <$> gParseRecord metas record
-parseSelector _ _ = fail "Type mismatch. This shouldn't happen!"
+-- For FromNamedRecord
+instance GParseNamedRecord f => GParseNamedRecord (M1 D t f) where
+  gParseNamedRecord selectorMetas namedRecord = M1 <$> gParseNamedRecord selectorMetas namedRecord
+
+instance GParseNamedSelector f => GParseNamedRecord (M1 C t f) where
+  gParseNamedRecord selectorMetas namedRecord = M1 <$> gParseNamedSelector 0 selectorMetas namedRecord
+
+instance Typeable a => GParseNamedSelector (M1 S m (K1 i a)) where
+  gParseNamedSelector i selectorMetas namedRecord = M1 . K1 <$> parseSelector (selectorMetas V.! i)
+    where parseSelector (Field tr fieldHeader _ decodeMapper)
+            | Just Refl <- testEquality tr (typeRep @a) = case HM.lookup fieldHeader namedRecord of
+              Just field -> decodeMapper <$> C.parseField field
+              Nothing -> fail $ "Mapping header " <> show fieldHeader <> " not in record"
+          parseSelector (Record tr metas decodeMapper)
+            | Just Refl <- testEquality tr (typeRep @a) = decodeMapper . to <$> gParseNamedRecord metas namedRecord
+          parseSelector _ = fail "Type mismatch. This shouldn't happen!"
