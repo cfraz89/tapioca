@@ -40,7 +40,6 @@ module Data.Tapioca
   , toRecord
   , toNamedRecord
   , parseRecord
-  , parseNamedRecord
   , header
   , mkCsvMap
   ) where
@@ -107,13 +106,13 @@ encode withHeader items = BL.toStrict . BB.toLazyByteString $ case withHeader of
   where recordItems = foldMap (CB.encodeRecord . ByCsvMap) items
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r. (CsvMapped r, GenericCsvDecode r) => Header -> B.ByteString -> Either String (V.Vector r)
+decode :: forall r. (CsvMapped r, GenericCsvDecode r C.Record) => Header -> B.ByteString -> Either String (V.Vector r)
 decode useHeader csv = C.runParser $ do
    (mbHdr, record) <- eitherParser $ parseCsv @r csv useHeader
-   traverse (parseRecord mbHdr) record
+   traverse (parseRecord' mbHdr) record
 
 -- Parse the required data from the csv file
-parseCsv :: forall r. (CsvMapped r, GenericCsvDecode r) => B.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
+parseCsv :: CsvMapped r => B.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
 parseCsv csv useHeader = flip AB.parseOnly csv $ do
   hdr <- case useHeader of
     WithHeader -> Just <$> (CP.header . fromIntegral . fromEnum) ','
