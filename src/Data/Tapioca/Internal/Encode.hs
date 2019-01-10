@@ -1,9 +1,9 @@
 module Data.Tapioca.Internal.Encode
   ( toRecord
   , toNamedRecord
-  ) where 
+  ) where
 
-import Data.Tapioca.Internal.Types 
+import Data.Tapioca.Internal.Types
   ( CsvMap(..)
   , CsvMapped(..)
   , FieldMapping(..)
@@ -15,7 +15,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
 
 -- | Tapioca equivalent of cassava's toRecord
-toRecord :: CsvMapped r => r -> C.Record
+toRecord :: (CsvMapped r, ReifyRecord r)  => r ->
 toRecord record = foldMap toFields (unCsvMap csvMap)
     where toFields (_ := fm) = V.singleton . C.toField $ encoder fm record
           toFields (Splice fm) = toRecord $ encoder fm record

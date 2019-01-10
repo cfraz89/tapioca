@@ -28,7 +28,7 @@ instance CsvMapped r => C.DefaultOrdered (ByCsvMap r) where
   headerOrder _ = header @r
 
 instance (CsvMapped r, GenericCsvDecode r C.Record) => C.FromRecord (ByCsvMap r) where
-  parseRecord = (ByCsvMap <$>) . parseRecord
+  parseRecord = (ByCsvMap <$>) . parseRecord Nothing
 
 instance (CsvMapped r, GenericCsvDecode r C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
-  parseNamedRecord = (ByCsvMap <$>) . parseRecord
+  parseNamedRecord = (ByCsvMap <$>) . parseRecord Nothing

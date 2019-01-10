@@ -17,12 +17,11 @@ module Data.Tapioca.Internal.Types
   , Header(..)
   ) where
 
-import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode, GSelectorList)
+import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode)
 
 import GHC.OverloadedLabels
 import GHC.TypeLits
 import GHC.Records
-import GHC.Generics
 
 import qualified Data.ByteString as B
 import qualified Data.Csv as C

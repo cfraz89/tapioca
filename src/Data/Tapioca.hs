@@ -51,7 +51,7 @@ import Data.Tapioca.Internal.Decode.Generic
 import Data.Tapioca.Internal.Encode
 import Data.Tapioca.Internal.Types
 
-import qualified Data.Attoparsec.ByteString as AB
+import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -99,21 +99,21 @@ mkCsvMap :: [SelectorMapping r] -> CsvMap r
 mkCsvMap = CsvMap . V.fromList
 
 -- | Encode a list of items using our mapping
-encode :: forall r. CsvMapped r => Header -> [r] -> B.ByteString
-encode withHeader items = BL.toStrict . BB.toLazyByteString $ case withHeader of
+encode :: forall r. CsvMapped r => Header -> [r] -> BL.ByteString
+encode withHeader items = BB.toLazyByteString $ case withHeader of
   WithHeader -> CB.encodeHeader (header @r) <> recordItems
   WithoutHeader -> recordItems
   where recordItems = foldMap (CB.encodeRecord . ByCsvMap) items
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r. (CsvMapped r, GenericCsvDecode r C.Record) => Header -> B.ByteString -> Either String (V.Vector r)
+decode :: forall r. (CsvMapped r, GenericCsvDecode r C.Record) => Header -> BL.ByteString -> Either String (V.Vector r)
 decode useHeader csv = C.runParser $ do
    (mbHdr, record) <- eitherParser $ parseCsv @r csv useHeader
-   traverse (parseRecord' mbHdr) record
+   traverse (parseRecord mbHdr) record
 
 -- Parse the required data from the csv file
-parseCsv :: CsvMapped r => B.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
-parseCsv csv useHeader = flip AB.parseOnly csv $ do
+parseCsv :: CsvMapped r => BL.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
+parseCsv csv useHeader = AB.eitherResult . flip AB.parse csv $ do
   hdr <- case useHeader of
     WithHeader -> Just <$> (CP.header . fromIntegral . fromEnum) ','
     WithoutHeader -> pure Nothing

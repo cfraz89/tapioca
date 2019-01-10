@@ -17,15 +17,13 @@ module Data.Tapioca.Internal.Decode.Generic
   , GParseRecord(..)
   , GParseSelector
   , SelectorMeta(..)
-  , ReifyRecord(..)
-  , RecordRep(..)
   ) where
 
 import GHC.Generics
 
-import qualified Data.ByteString as B
+import Data.Tapioca.Internal.ReifyRecord
+
 import qualified Data.Csv as C
-import qualified Data.HashMap.Strict as HM
 import Data.Type.Equality
 import qualified Data.Vector as V
 import Type.Reflection
@@ -72,8 +70,7 @@ instance (Typeable a, ReifyRecord rc, Show (RecordIndex rc)) => GParseSelector (
                 Just field -> decodeMapper <$> C.parseField field
                 Nothing -> fail $ "Mapping of field with index " <> show idx <> " not in record"
           parseSelector (Record dataRep metas decodeMapper)
-            | Just Refl <- testEquality dataRep (typeRep @a)
-              = decodeMapper . to <$> gParseRecord metas record
+            | Just Refl <- testEquality dataRep (typeRep @a) = decodeMapper . to <$> gParseRecord metas record
           parseSelector _ = fail "Type mismatch. This shouldn't happen!"
   
 instance (GParseSelector a r, GParseSelector b r) => GParseSelector (a :*: b) r where
@@ -81,26 +78,3 @@ instance (GParseSelector a r, GParseSelector b r) => GParseSelector (a :*: b) r 
     a <- gParseSelector i selectorMetas record
     b <- gParseSelector (succ i) selectorMetas record
     pure $ a :*: b
-
-
-data RecordRep = RepRecord | RepNamedRecord
-
-class ReifyRecord t where
-  type RecordIndex t
-  
-  fieldIndex :: B.ByteString -> Int -> RecordIndex t
-  lookupRecord :: t -> RecordIndex t -> Maybe C.Field
-  recordRep :: RecordRep
-  
-instance ReifyRecord C.Record where
-  type RecordIndex C.Record = Int
- 
-  fieldIndex _ pos = pos
-  lookupRecord = (V.!?)
-  recordRep = RepRecord
-  
-instance ReifyRecord C.NamedRecord where
-  type RecordIndex C.NamedRecord = C.Name
-  fieldIndex fieldHeader _ = fieldHeader
-  lookupRecord = flip HM.lookup
-  recordRep = RepNamedRecord

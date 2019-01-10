@@ -3,26 +3,31 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
 
 import Data.Tapioca
 
 import GHC.Generics
-import Type.Reflection
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Profunctor
+
+-- Only needed for the demos of exporting Cassava typeclasses
+import qualified Data.Csv as C
 
 data ExampleRecord = ExampleRecord
   { field1 :: Int
   , field2 :: String
   , field3 :: Maybe Int
   }
-  deriving (Show, Generic, Typeable)
+  deriving (Show, Generic)
+  deriving C.FromNamedRecord via ByCsvMap ExampleRecord
 
 data SplicingRecord = SplicingRecord
   { exampleRecord :: ExampleRecord
   , other :: Int
   }
   deriving (Show, Generic)
+  deriving C.FromNamedRecord via ByCsvMap SplicingRecord
 
 instance CsvMapped ExampleRecord where
  csvMap = mkCsvMap
@@ -60,7 +65,7 @@ main = do
         ]
 
   putStrLn "Encode Example Records ----------------"
-  putStrLn . B.unpack $ encode WithHeader exampleRecords
+  putStrLn . BL.unpack $ encode WithHeader exampleRecords
 
   ------------ Basic Decode Example
   let exampleCsv = "Sample Field 1,Sample Field 2,Sample Field 3\r\n" 
@@ -85,12 +90,17 @@ main = do
         ]
 
   putStrLn "Encode Example Splicing Records--------"
-  putStrLn . B.unpack $ encode WithHeader exampleSplicingRecords
+  putStrLn . BL.unpack $ encode WithHeader exampleSplicingRecords
 
   ----------- Decode spliced records
   let exampleSplicedCsv = "Sample Field 1,Sample Field 3,Sample Field 2,Other\r\n"
                         <> "First,3,This is field 2,4"
   putStrLn "Decode Example Spliced CSV ------------"
   print $ decode @SplicingRecord WithHeader exampleSplicedCsv
+  putStrLn mempty
+
+  ----------- Cassava compatibility: FromNamedRecord
+  putStrLn "Decode Example Spliced CSV with Cassava decodeByName ------------"
+  print $ C.decodeByName @SplicingRecord exampleSplicedCsv
   putStrLn mempty
 
