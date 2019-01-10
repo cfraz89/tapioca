@@ -108,8 +108,8 @@ encode withHeader items = BB.toLazyByteString $ case withHeader of
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
 decode :: forall r. (CsvMapped r, GenericCsvDecode r C.Record) => Header -> BL.ByteString -> Either String (V.Vector r)
 decode useHeader csv = C.runParser $ do
-   (mbHdr, record) <- eitherParser $ parseCsv @r csv useHeader
-   traverse (parseRecord mbHdr) record
+   (mbHdr, record) <- toParser $ parseCsv @r csv useHeader
+   traverse (parseRecord (Record mbHdr)) record
 
 -- Parse the required data from the csv file
 parseCsv :: CsvMapped r => BL.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)

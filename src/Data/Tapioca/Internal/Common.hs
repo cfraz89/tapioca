@@ -3,10 +3,12 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 -- | Functions needed in both encoding and decoding
-module Data.Tapioca.Internal.Common (header) where
+module Data.Tapioca.Internal.Common (header, (?!), toParser) where
 
 import Data.Tapioca.Internal.Types
 
+import qualified Data.Csv as C
+import Control.Error.Util
 import qualified Data.ByteString as B
 import qualified Data.Vector as V
 
@@ -16,3 +18,11 @@ header :: forall r. CsvMapped r => V.Vector B.ByteString
 header = foldMap names $ unCsvMap (csvMap @r)
   where names (name := _) = pure name
         names (Splice (_ :: FieldMapping r f d e)) = header @f
+
+infixl 1 ?!
+(?!) :: Maybe a -> b -> Either b a
+(?!) = flip note
+
+toParser :: Either String a -> C.Parser a
+toParser (Left e) = fail e
+toParser (Right a) = pure a

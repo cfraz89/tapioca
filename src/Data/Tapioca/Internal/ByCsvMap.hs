@@ -1,15 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Tapioca.Internal.ByCsvMap where
 
 import Data.Tapioca.Internal.Types
 import Data.Tapioca.Internal.Common (header)
 import Data.Tapioca.Internal.Encode (toRecord, toNamedRecord)
-import Data.Tapioca.Internal.Decode (parseRecord)
+import Data.Tapioca.Internal.Decode (ParseRecord(..), parseRecord)
 import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode)
 
 import qualified Data.Csv as C
@@ -28,7 +27,7 @@ instance CsvMapped r => C.DefaultOrdered (ByCsvMap r) where
   headerOrder _ = header @r
 
 instance (CsvMapped r, GenericCsvDecode r C.Record) => C.FromRecord (ByCsvMap r) where
-  parseRecord = (ByCsvMap <$>) . parseRecord Nothing
+  parseRecord = (ByCsvMap <$>) . parseRecord (Record Nothing)
 
 instance (CsvMapped r, GenericCsvDecode r C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
-  parseNamedRecord = (ByCsvMap <$>) . parseRecord Nothing
+  parseNamedRecord = (ByCsvMap <$>) . parseRecord NamedRecord
