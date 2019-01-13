@@ -17,7 +17,7 @@ import qualified Data.Vector as V
 header :: forall r. CsvMapped r => V.Vector B.ByteString
 header = foldMap names $ unCsvMap (csvMap @r)
   where names (name := _) = pure name
-        names (Splice (_ :: FieldMapping r f d e)) = header @f
+        names (Splice (_ :: FieldMapping x i r f d e)) = header @f
 
 infixl 1 ?!
 (?!) :: Maybe a -> b -> Either b a

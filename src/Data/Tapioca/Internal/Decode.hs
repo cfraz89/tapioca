@@ -53,7 +53,7 @@ parseRecord parseData record = do
 -- If a header is not provided, or element's header is not unique, falls back to mapping back to current position
 indexedMeta :: forall r t. GenericCsvDecode r => ParseRecord t -> t -> (Int, SelectorMapping r) -> C.Parser (Int, SelectorData)
 indexedMeta pr record (i, selectorMapping) = case selectorMapping of
-    name := (fm :: FieldMapping r f d e) ->
+    name := (fm :: FieldMapping x i r f d e) ->
       case pr of
         Record mbHdr -> do
           headerIndex <- case mbHdr of
@@ -65,13 +65,13 @@ indexedMeta pr record (i, selectorMapping) = case selectorMapping of
         NamedRecord -> do
           field <- C.parseField =<< toParser (HM.lookup name record ?! "Field name " <> show name <> " not in record")
           indexed fm field
-    Splice (fm :: FieldMapping r f d e) -> indexed fm =<< case pr of
+    Splice (fm :: FieldMapping x i r f d e) -> indexed fm =<< case pr of
       Record _ -> parseRecord pr record
       NamedRecord -> parseRecord pr record
 
-indexed :: forall r f d e. (Typeable f, GenericCsvDecode r) => FieldMapping r f d e -> d -> C.Parser (Int, SelectorData)
+indexed :: forall x i r f d e. (Typeable f, GenericCsvDecode r) => FieldMapping x i r f d e -> d -> C.Parser (Int, SelectorData)
 indexed fm d = do
-  selectorIndex <- toParser $ L.elemIndex (selector fm) (gSelectorList @(Rep r)) ?! "Record type doesn't have selector " <> selector fm
+  selectorIndex <- toParser $ L.elemIndex "" (gSelectorList @(Rep r)) ?! "Record type doesn't have selector " <> ""
   pure (selectorIndex, SelectorData (decoder fm d))
 
   -- TODO Need to be handing raw position in case Splice -> Record no header
