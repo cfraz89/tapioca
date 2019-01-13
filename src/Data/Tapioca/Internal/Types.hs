@@ -39,7 +39,7 @@ newtype CsvMap r = CsvMap { unCsvMap :: V.Vector (SelectorMapping r) }
 
 infixl 0 :=
 data SelectorMapping r = forall f e d. (C.ToField e, C.FromField d, Typeable f) => B.ByteString := FieldMapping r f d e
-                       | forall f e d. (GenericCsvDecode d C.Record, GenericCsvDecode d C.NamedRecord, Typeable f, CsvMapped f, CsvMapped e, CsvMapped d) => Splice (FieldMapping r f d e)
+                       | forall f e d. (GenericCsvDecode d, Typeable f, CsvMapped f, CsvMapped e, CsvMapped d) => Splice (FieldMapping r f d e)
 
 instance Show (SelectorMapping r) where
   show (name := fm) = show name <> " := " <> show fm
@@ -65,7 +65,7 @@ instance Profunctor (FieldMapping r f) where
 instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e) => IsLabel x (FieldMapping r f d e) where
   fromLabel = FieldMapping (symbolVal @x Proxy) (getField @x) id
 
-instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f C.Record, GenericCsvDecode f C.NamedRecord)
+instance (HasField x r f, KnownSymbol x, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f)
   => IsLabel x (SelectorMapping r) where
     fromLabel = Splice $ FieldMapping (symbolVal @x Proxy) (getField @x) (id :: d -> f)
 

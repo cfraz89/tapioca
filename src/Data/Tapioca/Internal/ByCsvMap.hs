@@ -26,8 +26,8 @@ instance CsvMapped r => C.ToNamedRecord (ByCsvMap r) where
 instance CsvMapped r => C.DefaultOrdered (ByCsvMap r) where
   headerOrder _ = header @r
 
-instance (CsvMapped r, GenericCsvDecode r C.Record) => C.FromRecord (ByCsvMap r) where
+instance (CsvMapped r, GenericCsvDecode r) => C.FromRecord (ByCsvMap r) where
   parseRecord = (ByCsvMap <$>) . parseRecord (Record Nothing)
 
-instance (CsvMapped r, GenericCsvDecode r C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
+instance (CsvMapped r, GenericCsvDecode r) => C.FromNamedRecord (ByCsvMap r) where
   parseNamedRecord = (ByCsvMap <$>) . parseRecord NamedRecord
