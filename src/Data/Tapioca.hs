@@ -106,7 +106,7 @@ encode withHeader items = BB.toLazyByteString $ case withHeader of
   where recordItems = foldMap (CB.encodeRecord . ByCsvMap) items
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r. (CsvMapped r, GenericCsvDecode r C.Record) => Header -> BL.ByteString -> Either String (V.Vector r)
+decode :: forall r. (CsvMapped r, GenericCsvDecode r) => Header -> BL.ByteString -> Either String (V.Vector r)
 decode useHeader csv = C.runParser $ do
    (mbHdr, record) <- toParser $ parseCsv @r csv useHeader
    traverse (parseRecord (Record mbHdr)) record

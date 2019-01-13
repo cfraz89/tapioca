@@ -28,6 +28,7 @@ import Data.Tapioca.Internal.Decode.Generic
   )
 
 import GHC.Generics
+import Type.Reflection
 
 import qualified Data.Csv as C
 import qualified Data.List as L
@@ -41,37 +42,36 @@ data ParseRecord t where
 -- | Existence of the header determines ordering strategry
 -- If header is provided (as is when parsing from tapioca decode function), will treat record as defined in the same order as the header
 -- Without header (as when invoked via cassava FromField instance, we have to assume that the fields are in the same order as the mapping
-parseRecord :: forall r t. (CsvMapped r, GenericCsvDecode r t) => ParseRecord t -> t -> C.Parser r
+parseRecord :: forall r t. (CsvMapped r, GenericCsvDecode r) => ParseRecord t -> t -> C.Parser r
 parseRecord parseData record = do
-   selectorMetasUnordered <- traverse (indexedMeta parseData record) (V.indexed . unCsvMap $ csvMap @r)
-   let selectorMetas = V.update (snd <$> selectorMetasUnordered) selectorMetasUnordered
-   parsed <- gParseRecord selectorMetas record
-   pure (to parsed)  
+   selectorDataMapOrder <- traverse (indexedMeta parseData record) (V.indexed . unCsvMap $ csvMap @r)
+   let selectorData = V.update (snd <$> selectorDataMapOrder) selectorDataMapOrder
+   parsed <- gParseRecord selectorData
+   pure (to parsed)
 
-  
 -- For decoding to C.Record or C.ToNamedRecord. When provided selector mapping determine correct position within csv/header list, and attach metadata necessary to construct from generic
 -- If a header is not provided, or element's header is not unique, falls back to mapping back to current position
-indexedMeta :: forall r t. GenericCsvDecode r t => ParseRecord t -> t -> (Int, SelectorMapping r) -> C.Parser (Int, SelectorData t)
-indexedMeta parseData record (i, selectorMapping) = case selectorMapping of
+indexedMeta :: forall r t. GenericCsvDecode r => ParseRecord t -> t -> (Int, SelectorMapping r) -> C.Parser (Int, SelectorData)
+indexedMeta pr record (i, selectorMapping) = case selectorMapping of
     name := (fm :: FieldMapping r f d e) ->
-      case parseData of
+      case pr of
         Record mbHdr -> do
           headerIndex <- case mbHdr of
             Just hdr | V.length (V.filter (== name) hdr) == 1
                        -> toParser $ V.elemIndex name hdr ?! "Couldn't find header item " <> show name <> " in CSV header"
             _ -> pure i
           field <- C.parseField (record V.! headerIndex)
-          indexed fm $ SelectorData (decoder fm field)
+          indexed fm field
         NamedRecord -> do
           field <- C.parseField =<< toParser (HM.lookup name record ?! "Field name " <> show name <> " not in record")
-          indexed fm $ SelectorData (decoder fm field)
-    Splice (fm :: FieldMapping r f d e) -> do
-      let pr = case parseData of
-            Record _ -> parseRecord
-            NamedRecord -> parseRecord
-      spliceParse <- decoder fm <$> pr parseData record
-      pure (0, SelectorData spliceParse)
-    where  indexed :: FieldMapping r f d e -> SelectorData t -> C.Parser (Int, SelectorData t)
-           indexed fm sd = do
-            selectorIndex <- toParser $ L.elemIndex (selector fm) (gSelectorList @(Rep r)) ?! "Record type doesn't have selector " <> selector fm
-            pure (selectorIndex, sd)
+          indexed fm field
+    Splice (fm :: FieldMapping r f d e) -> indexed fm =<< case pr of
+      Record _ -> parseRecord pr record
+      NamedRecord -> parseRecord pr record
+
+indexed :: forall r f d e. (Typeable f, GenericCsvDecode r) => FieldMapping r f d e -> d -> C.Parser (Int, SelectorData)
+indexed fm d = do
+  selectorIndex <- toParser $ L.elemIndex (selector fm) (gSelectorList @(Rep r)) ?! "Record type doesn't have selector " <> selector fm
+  pure (selectorIndex, SelectorData (decoder fm d))
+
+  -- TODO Need to be handing raw position in case Splice -> Record no header
