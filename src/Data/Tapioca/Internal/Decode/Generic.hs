@@ -9,11 +9,11 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Data.Tapioca.Internal.Decode.Generic
   ( GenericCsvDecode
@@ -26,6 +26,7 @@ module Data.Tapioca.Internal.Decode.Generic
 
 import GHC.Generics
 import GHC.TypeLits
+import GHC.Exts
 
 import qualified Data.Csv as C
 import Data.Proxy
@@ -91,25 +92,25 @@ type family UnRep r where
   UnRep (f :*: f2) = UnRep f2 -- not strictly corect
   UnRep (M1 D t f) = UnRep f
   
-class GHasField (x :: Symbol) (r :: * -> *) p where
+class GHasField (x :: Symbol) (r :: * -> *) where
   gGetField :: Proxy x -> r p -> UnRep r
 
-instance GHasField x (M1 S ('MetaSel ('Just x) p1 p2 p3) (K1 inf a)) p where
+instance x~s => GHasField x (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 inf a)) where
   gGetField _ (M1 (K1 a)) = a
 
-class GHasFieldI (x :: Symbol) (i :: INat) (r :: * -> *) p where
+class GHasFieldI (x :: Symbol) (i :: INat) (r :: * -> *) where
   gGetFieldI :: r p -> UnRep r
 
 data INat = Zero | Succ INat
 
-instance (GHasField x f p) => GHasFieldI x 'Zero (M1 C t f) p where
+instance GHasField x f => GHasFieldI x 'Zero (M1 C t f) where
   gGetFieldI (M1 f) = gGetField (Proxy @x) f
 
-instance (GHasFieldI x i (M1 C t f) p, GHasField x2 f2 p) => GHasFieldI x2 ('Succ i) (M1 C t (f :*: f2)) p where
+instance (GHasFieldI x i (M1 C t f), GHasField x2 f2) => GHasFieldI x2 ('Succ i) (M1 C t (f :*: f2)) where
   gGetFieldI (M1 (_ :*: f)) = gGetField (Proxy @x2) f
 
-instance (GHasFieldI x i f p) => GHasFieldI x i (M1 D t f) p where
+instance (GHasFieldI x i f) => GHasFieldI x i (M1 D t f) where
   gGetFieldI (M1 f) = gGetFieldI @x @i f
 
-instance (Generic r, GHasFieldI x i (Rep r) p, a ~ UnRep (Rep r)) => HasFieldI x i r a where
-  getField record = gGetFieldI @x @i @(Rep r) @p (from record)
+instance (Generic r, GHasFieldI x i (Rep r), a ~ UnRep (Rep r)) => HasFieldI x i r a where
+  getField record = gGetFieldI @x @i @(Rep r) (from record)
