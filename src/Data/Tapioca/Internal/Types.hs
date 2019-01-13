@@ -8,9 +8,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Data.Tapioca.Internal.Types 
   ( CsvMap(..)
@@ -20,12 +22,12 @@ module Data.Tapioca.Internal.Types
   , Header(..)
   ) where
 
-import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode)
+import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode, HasFieldI(..))
 
 import GHC.Exts
+import GHC.Generics
 import GHC.OverloadedLabels
 import GHC.TypeLits
-import GHC.Records
 
 import qualified Data.ByteString as B
 import qualified Data.Csv as C
@@ -65,17 +67,15 @@ instance Profunctor (FieldMapping x i r f) where
     , decoder = decoder fm . d
     }
 
-instance (HasField x r f, IndexedField x r i, f ~ d, f ~ e, x~x1) => IsLabel x (FieldMapping x1 i r f d e) where
+instance (HasFieldI x i r f, f ~ d, f ~ e, x~x1) => IsLabel x (FieldMapping x1 i r f d e) where
   fromLabel = FieldMapping @x @i (getField @x) id
 
-instance (HasField x r f, IndexedField x r i, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f)
+instance (HasFieldI x (i :: Nat) r f, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f)
   => IsLabel x (SelectorMapping r) where
     fromLabel = Splice $ FieldMapping @x @i (getField @x) (id :: d -> f)
 
 instance KnownSymbol x => Show (FieldMapping x i r f d e) where
   show fm = "Mapping " <> symbolVal' @x proxy#
-
-class IndexedField (x :: Symbol) r (i :: Nat) | x r -> i, i r -> x
 
 -- | When encoding, whether or not to write the header row.\n
 -- When decoding, whether or not the csv being decoded contains a header row.\n

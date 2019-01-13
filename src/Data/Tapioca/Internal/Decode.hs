@@ -25,9 +25,9 @@ import Data.Tapioca.Internal.Decode.Generic
   , SelectorData(..)
   , GParseRecord(..)
   , GSelectorList(..)
+  , HasFieldI(..)
   )
 
-import GHC.Generics
 import Type.Reflection
 
 import qualified Data.Csv as C
