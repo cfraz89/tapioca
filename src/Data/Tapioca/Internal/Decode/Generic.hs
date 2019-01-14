@@ -82,35 +82,43 @@ instance (GParseSelector a, GParseSelector b) => GParseSelector (a :*: b) where
 data Dummy = Dummy { dt :: Int, dt2 :: String }
   deriving Generic
 
---class HasFieldI (x :: Symbol) (i :: INat) r a | x r -> a, i r -> a, x r -> i, i r -> x where
-class HasFieldI (x :: Symbol) (i :: INat) r a where
+class HasFieldI (x :: Symbol) (i :: INat) r a | x i r -> a where
   getField :: r -> a
 
 type family UnRep r where
   UnRep (M1 S s (K1 i a)) = a
   UnRep (M1 C t f) = UnRep f
-  UnRep (f :*: f2) = UnRep f2 -- not strictly corect
+  -- UnRep (f :*: f2) = UnRep f2 -- not strictly corect
   UnRep (M1 D t f) = UnRep f
   
-class GHasField (x :: Symbol) (r :: * -> *) where
-  gGetField :: Proxy x -> r p -> UnRep r
+class GHasField (x :: Symbol) (r :: * -> *) a | x r -> a where
+  gGetField :: r p -> a
 
-instance x~s => GHasField x (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 inf a)) where
-  gGetField _ (M1 (K1 a)) = a
-
-class GHasFieldI (x :: Symbol) (i :: INat) (r :: * -> *) where
-  gGetFieldI :: r p -> UnRep r
+class GHasFieldI (x :: Symbol) (i :: INat) (r :: * -> *) a | x i r -> a, x r -> a where
+  gGetFieldI :: r p -> a
 
 data INat = Zero | Succ INat
 
-instance GHasField x f => GHasFieldI x 'Zero (M1 C t f) where
-  gGetFieldI (M1 f) = gGetField (Proxy @x) f
+instance x~s => GHasField x (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 inf a)) a where
+  gGetField (M1 (K1 a)) = a
 
-instance (GHasFieldI x i (M1 C t f), GHasField x2 f2) => GHasFieldI x2 ('Succ i) (M1 C t (f :*: f2)) where
-  gGetFieldI (M1 (_ :*: f)) = gGetField (Proxy @x2) f
+instance GHasField x f a => GHasField x (M1 C t f) a where
+  gGetField (M1 f) = gGetField @x f
 
-instance (GHasFieldI x i f) => GHasFieldI x i (M1 D t f) where
+instance GHasFieldI x i f a => GHasFieldI x i (M1 C t f) a where
   gGetFieldI (M1 f) = gGetFieldI @x @i f
 
-instance (Generic r, GHasFieldI x i (Rep r), a ~ UnRep (Rep r)) => HasFieldI x i r a where
-  getField record = gGetFieldI @x @i @(Rep r) (from record)
+instance x ~ s => GHasFieldI x 'Zero (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i' a)) a where
+  gGetFieldI f = gGetField @x f
+
+instance {-# OVERLAPPABLE #-} GHasFieldI x i f a => GHasFieldI x i (f :*: f2) a where
+  gGetFieldI (f :*: _) = gGetFieldI @x @i @f @a f
+
+instance {-# OVERLAPPING #-} (GHasFieldI x i f1 a1, GHasField x2 f2 a2) => GHasFieldI x2 ('Succ i) (f1 :*: f2) a2 where
+  gGetFieldI (_ :*: f2) = gGetField @x2 @f2 @a2 f2
+
+instance GHasFieldI x i f a => GHasFieldI x i (M1 D t f) a where
+  gGetFieldI (M1 f) = gGetFieldI @x @i f
+
+instance (Generic r, GHasFieldI x i (Rep r) a) => HasFieldI x i r a where
+  getField record = gGetFieldI @x @i @(Rep r) @a (from record)
