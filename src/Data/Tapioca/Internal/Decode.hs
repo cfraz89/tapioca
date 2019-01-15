@@ -29,6 +29,7 @@ import Data.Tapioca.Internal.Decode.Generic
   )
 
 import Type.Reflection
+import GHC.Generics
 
 import qualified Data.Csv as C
 import qualified Data.List as L

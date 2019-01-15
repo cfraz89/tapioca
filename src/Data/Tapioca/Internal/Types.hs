@@ -22,7 +22,7 @@ module Data.Tapioca.Internal.Types
   , Header(..)
   ) where
 
-import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode, HasFieldI(..))
+import Data.Tapioca.Internal.Decode.Generic (GenericCsvDecode, HasFieldI(..), INat(..))
 
 import GHC.Exts
 import GHC.Generics
@@ -56,7 +56,7 @@ instance Show (SelectorMapping r) where
 -- f - field type with record
 -- e - type to encode as
 -- g - Type to decode as
-data FieldMapping (x :: Symbol) (i :: Nat) r f d e = FieldMapping
+data FieldMapping (x :: Symbol) (i :: INat) r f d e = FieldMapping
   { encoder :: r -> e
   , decoder :: d -> f
   }
@@ -68,11 +68,11 @@ instance Profunctor (FieldMapping x i r f) where
     }
 
 instance (HasFieldI x i r f, f ~ d, f ~ e, x~x1) => IsLabel x (FieldMapping x1 i r f d e) where
-  fromLabel = FieldMapping @x @i (getField @x) id
+  fromLabel = FieldMapping @x @i (getField @x @i) id
 
-instance (HasFieldI x (i :: Nat) r f, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f)
+instance (HasFieldI x i r f, f ~ d, f ~ e, Typeable f, CsvMapped f, GenericCsvDecode f)
   => IsLabel x (SelectorMapping r) where
-    fromLabel = Splice $ FieldMapping @x @i (getField @x) (id :: d -> f)
+    fromLabel = Splice $ FieldMapping @x @i (getField @x @i) (id :: d -> f)
 
 instance KnownSymbol x => Show (FieldMapping x i r f d e) where
   show fm = "Mapping " <> symbolVal' @x proxy#
