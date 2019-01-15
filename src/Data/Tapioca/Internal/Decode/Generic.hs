@@ -14,15 +14,21 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeInType #-}
 
 module Data.Tapioca.Internal.Decode.Generic
   ( INat(..)
-  , FieldIndex
+  , GFieldIndex
   ) where
 
 import GHC.Exts
+import Data.Proxy
 import GHC.Generics
 import GHC.TypeLits
+import Data.Type.Equality
+import Data.Kind
 
 --type GenericCsvDecode r = (GSelectorList (Rep r), GParseRecord (Rep r), Generic r)
 
@@ -87,16 +93,31 @@ type family ToNat (a :: INat) where
   ToNat ('S 'Z) = 1
   ToNat ('S ('S 'Z)) = 2
 
+type family BoolNat (a :: Bool) where
+  BoolNat 'False = 'Nothing
+  BoolNat 'True = 'Just 0
 
-class GFieldIndex (x :: Symbol) r (i :: INat) | x r -> i
+type family AddMaybe (n :: Maybe Nat) (i :: Nat) where
+  AddMaybe 'Nothing i = 'Nothing
+  AddMaybe ('Just a) i = 'Just (a + i)
+
+type family Alt (x1 :: Symbol) (m1 :: Maybe a) (x2 :: Symbol) (m2 :: Maybe a) where
+  Alt x1 ('Just i1) x2 b = '(x1, ('Just i1))
+  Alt x1 'Nothing x2 i2 = '(x2, i2)
+  
+-- class Alt (x1 :: Symbol) (m1 :: Maybe a) (x2 :: Symbol) (m2 :: Maybe a) (xv :: Symbol) (xm :: Maybe a) | x1 m1 x2 m2 -> xv xm where
+-- instance Alt x1 ('Just i1) x2 b x1 ('Just i1)
+-- instance Alt x1 'Nothing x2 i2 x2 i2
+
+class GFieldIndex (x :: Symbol) r (i :: Maybe Nat) | x r -> i
 
 instance GFieldIndex x f i => GFieldIndex x (M1 D t f) i
 instance GFieldIndex x f i => GFieldIndex x (M1 C t f) i
-instance GFieldIndex x (M1 S ('MetaSel ('Just x) p1 p2 p3) f) 'Z
-instance {-# OVERLAPPABLE #-} GFieldIndex x1 f1 i1 => GFieldIndex x1 (f1 :*: f2) i1
-instance {-# OVERLAPPING #-} GFieldIndex x2 f2 i2 => GFieldIndex x2 (f1 :*: f2) ('S i2)
+instance n ~ BoolNat ('Just x == s) => GFieldIndex x (M1 S ('MetaSel s p1 p2 p3) f) n
+instance (GFieldIndex x1 f1 i1, GFieldIndex x2 f2 i2, '(x, i) ~ Alt x1 i1 x2 i2) => GFieldIndex x (f1 :*: f2) i
 
-class FieldIndex (x :: Symbol) r (i :: Nat) | x r -> i
+
+--class FieldIndex (x :: Symbol) r (i :: Nat) | x r -> i
 
 --instance (GFieldIndex x (Rep r) n, n' ~ ToNat n, KnownNat n') => FieldIndex x r n'
 
@@ -113,8 +134,9 @@ class FieldIndex (x :: Symbol) r (i :: Nat) | x r -> i
 -- >>> import GHC.Exts
 data Dummy = Dummy { dt :: Int, dt2 :: String } deriving Generic
 
-test :: forall a. (GFieldIndex "dt" (Rep Dummy) a) => Int
--- test = iNatVal @'Z proxy#
-test = 0
--- >>>
+test :: forall a i. (KnownNat i, GFieldIndex "dt" (Rep Dummy) a, a ~ 'Just i) => Integer
+test = natVal' @0 proxy#
+--test = iNatVal @'Z proxy#
+--test = 0
+
 -- >>> print test
