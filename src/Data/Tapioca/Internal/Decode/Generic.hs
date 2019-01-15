@@ -15,12 +15,10 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 
 module Data.Tapioca.Internal.Decode.Generic
-  ( INat(..)
-  , GFieldIndex
+  (  GFieldIndex
   ) where
 
 import GHC.Exts
@@ -75,24 +73,6 @@ import Data.Kind
 --     b <- gParseSelector (succ i) selectorMetas
 --     pure $ a :*: b
 
--- Using peanos gets around the duplicate instance definition against the :*: instances
-data INat = Z | S INat
-
-class INatVal (n :: INat) where
-  iNatVal :: Proxy# n -> Int
-
-instance INatVal 'Z where
-  iNatVal _ = 0
-
-instance INatVal n => INatVal ('S n) where
-  iNatVal _ = 1 + iNatVal @n proxy#
-
-type family ToNat (a :: INat) where
-  ToNat 'Z = 0
-  --ToNat ('S n) = 1 + (ToNat n)
-  ToNat ('S 'Z) = 1
-  ToNat ('S ('S 'Z)) = 2
-
 type family BoolNat (a :: Bool) where
   BoolNat 'False = 'Nothing
   BoolNat 'True = 'Just 0
@@ -101,42 +81,30 @@ type family AddMaybe (n :: Maybe Nat) (i :: Nat) where
   AddMaybe 'Nothing i = 'Nothing
   AddMaybe ('Just a) i = 'Just (a + i)
 
-type family Alt (x1 :: Symbol) (m1 :: Maybe a) (x2 :: Symbol) (m2 :: Maybe a) where
-  Alt x1 ('Just i1) x2 b = '(x1, ('Just i1))
-  Alt x1 'Nothing x2 i2 = '(x2, i2)
+-- type family Alt (x1 :: Symbol) (m1 :: Maybe a) (x2 :: Symbol) (m2 :: Maybe a) where
+--   Alt x1 ('Just i1) x2 b = '(x1, ('Just i1))
+--   Alt x1 'Nothing x2 i2 = '(x2, i2)
   
--- class Alt (x1 :: Symbol) (m1 :: Maybe a) (x2 :: Symbol) (m2 :: Maybe a) (xv :: Symbol) (xm :: Maybe a) | x1 m1 x2 m2 -> xv xm where
--- instance Alt x1 ('Just i1) x2 b x1 ('Just i1)
--- instance Alt x1 'Nothing x2 i2 x2 i2
+class Alt (m1 :: Maybe a) (m2 :: Maybe a) (mv :: Maybe a) | m1 m2 -> mv where
+instance Alt ('Just i1) m2 ('Just i1)
+instance forall (i2 :: Nat) (i3 :: Nat). i3 ~ (i2 + 1) => Alt 'Nothing ('Just i2) ('Just i3)
 
-class GFieldIndex (x :: Symbol) r (i :: Maybe Nat) | x r -> i
+class GFieldIndex (x :: Symbol) r (i :: Maybe Nat)
 
 instance GFieldIndex x f i => GFieldIndex x (M1 D t f) i
 instance GFieldIndex x f i => GFieldIndex x (M1 C t f) i
 instance n ~ BoolNat ('Just x == s) => GFieldIndex x (M1 S ('MetaSel s p1 p2 p3) f) n
-instance (GFieldIndex x1 f1 i1, GFieldIndex x2 f2 i2, '(x, i) ~ Alt x1 i1 x2 i2) => GFieldIndex x (f1 :*: f2) i
-
+instance (GFieldIndex x f1 i1, GFieldIndex x f2 i2, Alt i1 i2 i) => GFieldIndex x (f1 :*: f2) i
 
 --class FieldIndex (x :: Symbol) r (i :: Nat) | x r -> i
+--instance (GFieldIndex x (Rep r) ('Just i), KnownNat i) => FieldIndex x r i
 
---instance (GFieldIndex x (Rep r) n, n' ~ ToNat n, KnownNat n') => FieldIndex x r n'
+type HasFieldIndex (x :: Symbol) r (i :: Nat) = (GFieldIndex x (Rep r) ('Just i), KnownNat i)
 
--- >>> :set -XKindSignatures
--- >>> :set -XDeriveGeneric
--- >>> :set -XRankNTypes
--- >>> :set -XDeriveGeneric
--- >>> :set -XDataKinds
--- >>> :set -XFlexibleContexts
--- >>> :set -XAllowAmbiguousTypes
--- >>> :set -XMagicHash
--- >>> :set -XTypeApplications
--- >>>
--- >>> import GHC.Exts
 data Dummy = Dummy { dt :: Int, dt2 :: String } deriving Generic
 
-test :: forall a i. (KnownNat i, GFieldIndex "dt" (Rep Dummy) a, a ~ 'Just i) => Integer
-test = natVal' @0 proxy#
---test = iNatVal @'Z proxy#
---test = 0
+varIndex :: forall s a i. (KnownNat i, GFieldIndex s (Rep Dummy) a, a ~ 'Just i) => Integer
+varIndex = natVal' @i proxy#
 
--- >>> print test
+hasIndexTest :: forall s i. HasFieldIndex s Dummy i => Integer
+hasIndexTest = natVal' @i proxy#
