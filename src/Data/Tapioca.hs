@@ -119,3 +119,9 @@ parseCsv csv useHeader = AB.eitherResult . flip AB.parse csv $ do
     WithoutHeader -> pure Nothing
   records <- CP.csv C.defaultDecodeOptions
   pure (hdr, records)
+
+instance (HasField x r f, f ~ d, f ~ e, C.ToField e, C.FromField d) => IsLabel x (FieldMapping r f d e) where
+  fromLabel = FieldMapping getField id
+
+instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, GenericCsvDecode f) => IsLabel x (SelectorMapping r) where
+  fromLabel = Splice $ FieldMapping getField id
