@@ -29,7 +29,7 @@ library
         Data.Tapioca.Internal.Decode.Generic
     hs-source-dirs: src
     default-language: Haskell2010
-    ghc-options: -Wall
+    ghc-options: -Wall -fprint-potential-instances
     build-depends:
         base >=4.10.0 && < 1000,
         attoparsec           >= 0.13.2 && < 0.14,

@@ -1,10 +1,21 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE OverloadedLabels #-}
+
+--Remove later
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 -- | This module builds on <http://hackage.haskell.org/package/cassava> to provide support for simpler mapping of records to and from CSV.
--- 
+--
 -- This is primarily achieved by use of modern GHC features such as HasField and OverloadedLabels.
 
 module Data.Tapioca
@@ -34,7 +45,8 @@ module Data.Tapioca
   , CsvMapped(..)
   , ByCsvMap(..)
   , Header(..)
-  , SelectorMapping ((:=))
+  , FieldMapping ((:=))
+  , (:|)(..)
   , encode
   , decode
   , toRecord
@@ -43,6 +55,12 @@ module Data.Tapioca
   , header
   , mkCsvMap
   ) where
+
+import GHC.OverloadedLabels
+import GHC.Records
+import GHC.Generics
+import GHC.Exts
+import qualified Data.Csv as C
 
 import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Common
@@ -81,7 +99,7 @@ import qualified Data.Vector as V
 -- instance 'CsvMapped' SomeItem where ...
 -- @
 
--- $example-coding 
+-- $example-coding
 -- To encode to csv:
 --
 -- @
@@ -95,8 +113,8 @@ import qualified Data.Vector as V
 -- @
 
 -- | Construct a CsvMap from a list of mappings
-mkCsvMap :: [SelectorMapping r] -> CsvMap r
-mkCsvMap = CsvMap . V.fromList
+--mkCsvMap :: fm -> CsvMap r fm
+--mkCsvMap = CsvMap
 
 -- | Encode a list of items using our mapping
 encode :: forall r. CsvMapped r => Header -> [r] -> BL.ByteString
@@ -106,22 +124,28 @@ encode withHeader items = BB.toLazyByteString $ case withHeader of
   where recordItems = foldMap (CB.encodeRecord . ByCsvMap) items
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r. (CsvMapped r, GenericCsvDecode r) => Header -> BL.ByteString -> Either String (V.Vector r)
+decode :: forall r. CsvMapped r => Header -> BL.ByteString -> Either String (V.Vector r)
 decode useHeader csv = C.runParser $ do
-   (mbHdr, record) <- toParser $ parseCsv @r csv useHeader
-   traverse (parseRecord (Record mbHdr)) record
+   (mbHdr, record) <- toParser $ parseCsv @r proxy# csv useHeader
+   traverse (parseRecord @r (Record mbHdr)) record
 
 -- Parse the required data from the csv file
-parseCsv :: CsvMapped r => BL.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
-parseCsv csv useHeader = AB.eitherResult . flip AB.parse csv $ do
+parseCsv :: CsvMapped r => Proxy# r -> BL.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
+parseCsv _ csv useHeader = AB.eitherResult . flip AB.parse csv $ do
   hdr <- case useHeader of
     WithHeader -> Just <$> (CP.header . fromIntegral . fromEnum) ','
     WithoutHeader -> pure Nothing
   records <- CP.csv C.defaultDecodeOptions
   pure (hdr, records)
 
-instance (HasField x r f, f ~ d, f ~ e, C.ToField e, C.FromField d) => IsLabel x (FieldMapping r f d e) where
-  fromLabel = FieldMapping getField id
+data Dummy = Dummy { dt :: Int } deriving Generic
 
-instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, GenericCsvDecode f) => IsLabel x (SelectorMapping r) where
-  fromLabel = Splice $ FieldMapping getField id
+type Fm1 = FieldMapping "dt" Dummy Int Int Int
+
+
+instance CsvMapped Dummy where
+  csvMap = CsvMap $ "Hi I'm" := #dt
+
+
+decodeTest :: C.Parser Dummy
+decodeTest = to <$> gParseRecord @_ @Dummy proxy# (csvMap @Dummy) mempty
