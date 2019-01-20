@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Data.Tapioca.Internal.Types
   ( CsvMap(..)
@@ -72,51 +73,48 @@ type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'EQ = 'True
   OrdBool 'GT = 'False
 
-class ToFieldMapping t (s :: Symbol) where
-  type Record t s
-  type Field t s
-  type Decode t s
-  type Encode t s
+class Reduce t (s :: Symbol) tt | t s -> tt where
   type Match t s :: Bool
-  selectorMapping :: t -> FieldMapping s (Record t s) (Field t s) (Decode t s) (Encode t s)
+  selectorMapping :: t -> tt
 
-class UnliftBool (b :: Bool) where
-  unliftBool :: Bool
+-- class OrdMaybe (o :: Ordering) t where val :: t -> Maybe t
+-- instance OrdMaybe 'LT t where val _ = Nothing
+-- instance OrdMaybe 'EQ t where val t = Just t
+-- instance OrdMaybe 'GT t where val _ = Nothing
 
-instance UnliftBool 'True where unliftBool = True
-instance UnliftBool 'False where unliftBool = False
-  
   -- Base case
-instance (HasField s r f, UnliftBool (OrdBool (CmpSymbol s s'))) => ToFieldMapping (FieldMapping s r f d e) s' where
-  type Record (FieldMapping s r f d e) s' = r
-  type Field (FieldMapping s r f d e) s' = f
-  type Decode (FieldMapping s r f d e) s' = d
-  type Encode (FieldMapping s r f d e) s' = e
-  type Match (FieldMapping s r f d e) s' = OrdBool (CmpSymbol s s')
-  selectorMapping t = case (unliftBool @(Match (FieldMapping s r f d e) s'), t) of
-                        (True, b := m) -> b := m
-                        (True, Splice s) -> Splice s
-                        (False, _) -> error "Should not be invoked"
-                        
+instance HasField s r f => Reduce (FieldMapping s' r f d e) s (FieldMapping s' r f d e) where
+  type Match (FieldMapping s' r f d e) s = OrdBool (CmpSymbol s s')
+  selectorMapping = id
 
 --Typeclass for determining which element of some alternatives matches our selector
-class FindFieldMapping (t :: k) (s :: Symbol) where
-  type Result t s :: k
+--class FindFieldMapping (t :: k) (s :: Symbol) where
+--  type Result t s :: k
 
-instance FindFieldMapping (t1 :| t2) s where
+--instance FindFieldMapping (t1 :| t2) s where
   -- type Result (t1 :| t2) s = If (Match t1 s) t1
   --                   (If (Match t2 s) t2
   --                   (TypeError (Text "Types " :<>: ShowType t1 :<>: 'Text " and " ':<>: 'ShowType t2 ':<>: 'Text " dont't contain selector " ':<>: 'ShowType s)))
-  type Result (t1 :| t2) s = If (Match t1 s) t1 t2
+  -- type Result (t1 :| t2) s = If (Match t1 s) t1 t2
+--  type Result (t1 :| t2) s = t1
 
-instance (ToFieldMapping t1 s, ToFieldMapping t2 s) => ToFieldMapping (t1 :| t2) s where
-  type Record (t1 :| t2) s = Record (Result (t1 :| t2) s) s
-  type Field (t1 :| t2) s = Field (Result (t1 :| t2) s) s
-  type Decode (t1 :| t2) s = Decode (Result (t1 :| t2) s) s
-  type Encode (t1 :| t2) s = Encode (Result (t1 :| t2) s) s
+class PickMatch (t1 :: Type) (t2 :: Type) (b :: Bool) where
+  type Picked t1 t2 b
+  picked :: t1 :| t2 -> Picked t1 t2 b
+
+instance PickMatch t1 t2 'True where
+  type Picked t1 t2 'True = t1
+  picked (t1 :| _) = t1
+
+instance PickMatch t1 t2 'False where
+  type Picked t1 t2 'False = t2
+  picked (_ :| t2) = t2
+  
+instance (Reduce tt s tv, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s tv where
   type Match (t1 :| t2) s = Match t1 s || Match t2 s
-  selectorMapping (t1 :| t2) = if unliftBool @(Match t1 s) then selectorMapping @t1 @s t1 else selectorMapping @t2 @s t2
-
+  selectorMapping :: (t1 :| t2) -> tv
+  selectorMapping t = selectorMapping @_ @s (picked @_ @_ @m t)
+  
 -- Initially expose our field type so that it can be mapped over
 -- r - Record type
 -- f - field type with record
@@ -154,7 +152,7 @@ instance GParseRecord f r t => GParseRecord (M1 D x f) r t where
 instance GParseRecord f r t => GParseRecord (M1 C x f) r t where
   gParseRecord p fieldmaps nr = M1 <$> gParseRecord p fieldmaps nr
 
-instance ToFieldMapping t s => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3i) (K1 i a)) r t where
+instance Reduce t s (FieldMapping s r f d e) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i a)) r t where
   gParseRecord _ fieldMaps nr = M1 . K1 <$> fail ""
 
 instance (GParseRecord a r t, GParseRecord b r t) => GParseRecord (a :*: b) r t where

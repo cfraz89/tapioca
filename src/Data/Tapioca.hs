@@ -140,8 +140,7 @@ parseCsv _ csv useHeader = AB.eitherResult . flip AB.parse csv $ do
 
 data Dummy = Dummy { dt :: Int } deriving Generic
 
-type Fm1 = FieldMapping "dt" Dummy Int Int Int
-
+--type Fm1 = FieldMapping "dt" Dummy Int Int Int
 
 instance CsvMapped Dummy where
   csvMap = CsvMap $ "Hi I'm" := #dt
