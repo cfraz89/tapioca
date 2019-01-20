@@ -22,7 +22,6 @@ module Data.Tapioca.Internal.Types
   , FieldMapping(..)
   , Header(..)
   , (:|)(..)
-  , LookupFieldMapping(..)
   , GenericCsvDecode(..)
   , GParseRecord(..)
   ) where
@@ -34,6 +33,7 @@ import GHC.Generics
 import GHC.OverloadedLabels
 
 import Data.Kind
+import Data.Type.Bool
 import qualified Data.Csv as C
 import qualified Data.ByteString as B
 import qualified Data.Profunctor as P
@@ -48,7 +48,7 @@ infixl 1 :|
 data a :| b = a :| b
 
 infixl 2 :=
-data FieldMapping s r f d e = B.ByteString := (Codec r f d e)
+data FieldMapping (s :: Symbol) r f d e = B.ByteString := (Codec r f d e)
                             | Splice (Codec r f d e)
 
 instance (HasField x r f, f ~ d, f ~ e, C.ToField e, C.FromField d) => IsLabel x (Codec r f d e) where
@@ -64,42 +64,58 @@ instance (HasField x r f, f ~ d, f ~ e, CsvMapped f) => IsLabel x (FieldMapping 
 -- d - decode as type
 -- e - encode as type
 -- lookup result
-class LookupFieldMapping t s r f d e (v :: Bool) | t s r f d e -> v where
-  selectorMapping :: t -> FieldMapping s r f d e
+--class LookupFieldMapping t s r f d e (v :: Bool) | t s r -> f d e v where
+--  selectorMapping :: t -> FieldMapping s r f d e
 
-type family OrdBool (b :: Ordering) where
+type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'LT = 'False
   OrdBool 'EQ = 'True
   OrdBool 'GT = 'False
 
- -- Base case
-instance (HasField s r f,v ~ OrdBool (CmpSymbol s s'),s~s',r~r',f~f',d~d',e~e') => LookupFieldMapping (FieldMapping s r f d e) s' r' f' d' e' v where
-  selectorMapping = id
+class ToFieldMapping t (s :: Symbol) where
+  type Record t s
+  type Field t s
+  type Decode t s
+  type Encode t s
+  type Match t s :: Bool
+  selectorMapping :: t -> FieldMapping s (Record t s) (Field t s) (Decode t s) (Encode t s)
 
-data SSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2 where
-  SLeft :: (sv ~ s1, fv ~ f1, dv ~ d1, ev ~ e1) => SSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2
-  SRight :: (sv ~ s2, fv ~ f2, dv ~ d2, ev ~ e2) => SSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2
+class UnliftBool (b :: Bool) where
+  unliftBool :: Bool
 
-class LookupSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2 (sd :: SSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2) where
-  side :: Proxy# sd -> SSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2
+instance UnliftBool 'True where unliftBool = True
+instance UnliftBool 'False where unliftBool = False
+  
+  -- Base case
+instance (HasField s r f, UnliftBool (OrdBool (CmpSymbol s s'))) => ToFieldMapping (FieldMapping s r f d e) s' where
+  type Record (FieldMapping s r f d e) s' = r
+  type Field (FieldMapping s r f d e) s' = f
+  type Decode (FieldMapping s r f d e) s' = d
+  type Encode (FieldMapping s r f d e) s' = e
+  type Match (FieldMapping s r f d e) s' = OrdBool (CmpSymbol s s')
+  selectorMapping t = case (unliftBool @(Match (FieldMapping s r f d e) s'), t) of
+                        (True, b := m) -> b := m
+                        (True, Splice s) -> Splice s
+                        (False, _) -> error "Should not be invoked"
+                        
 
-data Match (sd :: SSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2) t s f d e (v :: Bool)
+--Typeclass for determining which element of some alternatives matches our selector
+class FindFieldMapping (t :: k) (s :: Symbol) where
+  type Result t s :: k
 
-instance
-  ( LookupFieldMapping t1 s1 r1 f1 d1 e1 v1
-  , LookupFieldMapping t2 s2 r2 f2 d2 e2 v2
-  , r1 ~ r2
-  , MatchMapping s1 f1 d1 e1 v1 s2 f2 d2 e2 v2 ~ Match sd sv fv dv ev vv
-  , LookupSide sv fv dv ev t1 s1 f1 d1 e1 t2 s2 f2 d2 e2 sd
-  )  => LookupFieldMapping (t1 :| t2) sv rv fv dv ev vv where
-  selectorMapping (t1 :| t2) = case side @sv @fv @dv @ev @t1 @s1 @f1 @d1 @e1 @t2 @s2 @f2 @d2 @e2 (proxy# :: Proxy# sd) of
-    SLeft -> selectorMapping @t1 @s1 @r1 @f1 @d1 @e1 @v1 t1
-    SRight -> selectorMapping @t2 @s2 @r2 @f2 @d2 @e2 @v2 t2
+instance FindFieldMapping (t1 :| t2) s where
+  -- type Result (t1 :| t2) s = If (Match t1 s) t1
+  --                   (If (Match t2 s) t2
+  --                   (TypeError (Text "Types " :<>: ShowType t1 :<>: 'Text " and " ':<>: 'ShowType t2 ':<>: 'Text " dont't contain selector " ':<>: 'ShowType s)))
+  type Result (t1 :| t2) s = If (Match t1 s) t1 t2
 
-type family MatchMapping s1 f1 d1 e1 (v1 :: Bool) s2 f2 d2 e2 (v2 :: Bool) where
-  MatchMapping s1 f1 d1 e1 'True _ _ _ _ _ = Match 'SLeft s1 f1 d1 e1 'True
-  MatchMapping _ _ _ _ 'False s2 f2 d2 e2 'True = Match 'SRight s2 f2 d2 e2 'True
-  MatchMapping _ f1 _ _ 'False _ f2 _ _ 'False = TypeError ('Text "Types " ':<>: 'ShowType f1 ':<>: 'Text " and " ':<>: 'ShowType f2 ':<>: 'Text " dont't match")
+instance (ToFieldMapping t1 s, ToFieldMapping t2 s) => ToFieldMapping (t1 :| t2) s where
+  type Record (t1 :| t2) s = Record (Result (t1 :| t2) s) s
+  type Field (t1 :| t2) s = Field (Result (t1 :| t2) s) s
+  type Decode (t1 :| t2) s = Decode (Result (t1 :| t2) s) s
+  type Encode (t1 :| t2) s = Encode (Result (t1 :| t2) s) s
+  type Match (t1 :| t2) s = Match t1 s || Match t2 s
+  selectorMapping (t1 :| t2) = if unliftBool @(Match t1 s) then selectorMapping @t1 @s t1 else selectorMapping @t2 @s t2
 
 -- Initially expose our field type so that it can be mapped over
 -- r - Record type
@@ -138,9 +154,7 @@ instance GParseRecord f r t => GParseRecord (M1 D x f) r t where
 instance GParseRecord f r t => GParseRecord (M1 C x f) r t where
   gParseRecord p fieldmaps nr = M1 <$> gParseRecord p fieldmaps nr
 
--- d and e are the floating variables here, should be able to infer them from the fundeps
--- might need to split into two typeclasses if it can't resolve
-instance LookupFieldMapping t s r f d e 'True => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3i) (K1 i a)) r t where
+instance ToFieldMapping t s => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3i) (K1 i a)) r t where
   gParseRecord _ fieldMaps nr = M1 . K1 <$> fail ""
 
 instance (GParseRecord a r t, GParseRecord b r t) => GParseRecord (a :*: b) r t where
