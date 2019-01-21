@@ -10,7 +10,6 @@
 
 module Data.Tapioca.Internal.Decode
   ( ParseRecord(..)
-  , parseRecord
   ) where 
 
 import Data.Tapioca.Internal.Common ((?!), toParser)
@@ -37,8 +36,8 @@ data ParseRecord t where
 -- | Existence of the header determines ordering strategry
 -- If header is provided (as is when parsing from tapioca decode function), will treat record as defined in the same order as the header
 -- Without header (as when invoked via cassava FromField instance, we have to assume that the fields are in the same order as the mapping
-parseRecord :: forall r t. CsvMapped r => ParseRecord t -> t -> C.Parser r
-parseRecord = undefined
+--parseRecord :: forall r t. CsvMapped r => ParseRecord t -> t -> C.Parser r
+--parseRecord = undefined
 -- parseRecord parseData record = do
 --    selectorDataMapOrder <- traverse (indexedMeta parseData record) (V.indexed . unCsvMap $ csvMap @r)
 --    let selectorData = V.update (snd <$> selectorDataMapOrder) selectorDataMapOrder

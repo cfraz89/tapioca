@@ -14,17 +14,19 @@
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Data.Tapioca.Internal.Types
   ( CsvMap(..)
   ,  CsvMapped(..)
   , Codec(..)
   , FieldMapping(..)
-  , Header(..)
+  , EncodeIndexing(..)
+  , DecodeIndexing(..)
   , (:|)(..)
-  , GenericCsvDecode(..)
+  , GenericCsvDecode
   , GParseRecord(..)
+  --, HFoldable(..)
   ) where
 
 import GHC.Records
@@ -33,13 +35,16 @@ import GHC.Exts
 import GHC.Generics
 import GHC.OverloadedLabels
 
-import Data.Kind
-import Data.Type.Bool
-import qualified Data.Csv as C
+import Data.Proxy
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
+import qualified Data.Csv as C
+import qualified Data.HashMap.Strict as HM
+import Data.Kind
 import qualified Data.Profunctor as P
+import Data.Type.Bool
 
-data CsvMap r = forall m. GenericCsvDecode r m => CsvMap m
+data CsvMap r = forall m. GenericCsvDecode r m C.NamedRecord => CsvMap m
 
 -- | This is the core type class of tapioca. Implement it in your types to support easy encoding to CSV
 class CsvMapped r where
@@ -48,55 +53,44 @@ class CsvMapped r where
 infixl 1 :|
 data a :| b = a :| b
 
+--class HFoldable (t :: Type) where
+
+  -- hFoldr :: (forall x. x -> b -> b) -> b -> t -> b
+  -- hFoldMap :: Monoid m => (forall x. x -> m) -> t -> m
+
+  -- hFoldl :: (b -> FieldMapping t s r f d e -> b) -> b -> (FieldMapping t s r f d e :| xs) -> b
+  -- hFoldl f b (x :| xs) = hFoldl f (f b x) xs
+  -- hFoldr f b (x :| xs) = hFoldr f (f x b) xs
+  -- hFoldMap f (x :| xs) = f x <> hFoldMap f xs
+
 infixl 2 :=
-data FieldMapping (s :: Symbol) r f d e = B.ByteString := (Codec r f d e)
-                            | Splice (Codec r f d e)
+data FieldMapping (s :: Symbol) r f d e
+  = C.FromField d => B.ByteString := (Codec r f d e)
+  | forall m. (CsvMapped d, Generic d) => Splice (Proxy m) (Codec r f d e)
 
 instance (HasField x r f, f ~ d, f ~ e, C.ToField e, C.FromField d) => IsLabel x (Codec r f d e) where
   fromLabel = Codec (getField @x) id
 
-instance (HasField x r f, f ~ d, f ~ e, CsvMapped f) => IsLabel x (FieldMapping x r f d e) where
-  fromLabel = Splice $ Codec (getField @x) id
-
--- t - type which contains our mapping somewhere
--- s - selector name
--- r - record
--- f - field / selector type
--- d - decode as type
--- e - encode as type
--- lookup result
---class LookupFieldMapping t s r f d e (v :: Bool) | t s r -> f d e v where
---  selectorMapping :: t -> FieldMapping s r f d e
+instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, Generic f, Generic e, GenericCsvDecode d m C.NamedRecord) => IsLabel x (FieldMapping x r f d e) where
+  fromLabel = Splice (Proxy @m) (Codec (getField @x) id)
 
 type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'LT = 'False
   OrdBool 'EQ = 'True
   OrdBool 'GT = 'False
 
+type EqSymbol s s' = OrdBool (CmpSymbol s s')
+
+-- Class for terms which can be reduced to a simpler type
+-- The goal is to reduce to FieldMapping
 class Reduce t (s :: Symbol) tt | t s -> tt where
   type Match t s :: Bool
   selectorMapping :: t -> tt
 
--- class OrdMaybe (o :: Ordering) t where val :: t -> Maybe t
--- instance OrdMaybe 'LT t where val _ = Nothing
--- instance OrdMaybe 'EQ t where val t = Just t
--- instance OrdMaybe 'GT t where val _ = Nothing
-
   -- Base case
 instance HasField s r f => Reduce (FieldMapping s' r f d e) s (FieldMapping s' r f d e) where
-  type Match (FieldMapping s' r f d e) s = OrdBool (CmpSymbol s s')
+  type Match (FieldMapping s' r f d e) s = EqSymbol s s'
   selectorMapping = id
-
---Typeclass for determining which element of some alternatives matches our selector
---class FindFieldMapping (t :: k) (s :: Symbol) where
---  type Result t s :: k
-
---instance FindFieldMapping (t1 :| t2) s where
-  -- type Result (t1 :| t2) s = If (Match t1 s) t1
-  --                   (If (Match t2 s) t2
-  --                   (TypeError (Text "Types " :<>: ShowType t1 :<>: 'Text " and " ':<>: 'ShowType t2 ':<>: 'Text " dont't contain selector " ':<>: 'ShowType s)))
-  -- type Result (t1 :| t2) s = If (Match t1 s) t1 t2
---  type Result (t1 :| t2) s = t1
 
 class PickMatch (t1 :: Type) (t2 :: Type) (b :: Bool) where
   type Picked t1 t2 b
@@ -109,12 +103,11 @@ instance PickMatch t1 t2 'True where
 instance PickMatch t1 t2 'False where
   type Picked t1 t2 'False = t2
   picked (_ :| t2) = t2
-  
+
 instance (Reduce tt s tv, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s tv where
   type Match (t1 :| t2) s = Match t1 s || Match t2 s
-  selectorMapping :: (t1 :| t2) -> tv
   selectorMapping t = selectorMapping @_ @s (picked @_ @_ @m t)
-  
+
 -- Initially expose our field type so that it can be mapped over
 -- r - Record type
 -- f - field type with record
@@ -135,27 +128,44 @@ instance P.Profunctor (Codec r f) where
 -- When decoding, whether or not the csv being decoded contains a header row.\n
 -- if decoding WithoutHeader, tapioca will map the order of fields in the csv
 -- to the order that fields are specified in the csvMap.
-data Header = WithHeader | WithoutHeader
 
+data DecodeIndexing r t where
+  DecodeNamed :: C.FromNamedRecord r => DecodeIndexing r C.NamedRecord
+  DecodeOrdered :: C.FromRecord r => C.HasHeader -> DecodeIndexing r C.Record
 
-type GenericCsvDecode r t = (GParseRecord (Rep r) r t, Generic r)
+data EncodeIndexing r t where
+  EncodeNamed :: C.ToNamedRecord r => EncodeIndexing r C.NamedRecord
+  EncodeOrdered :: C.ToRecord r => EncodeIndexing r C.NamedRecord
+
+type GenericCsvDecode r t i = (GParseRecord (Rep r) r t i, Generic r)
 
 -- r :: record type we are parsing to
--- t :: Our smap type
+-- t :: Our CsvMap unwrapped type
+-- i :: Indexing type - Record or NamedRecord
 -- namedRecord :: type level map (selector -> data) (
-class GParseRecord (f :: Type -> Type) r t where
-  gParseRecord :: Proxy# r -> t -> C.NamedRecord -> C.Parser (f p)
+class GParseRecord (f :: Type -> Type) r t i where
+  gParseRecord :: Proxy# r -> t -> i -> C.Parser (f p)
 
-instance GParseRecord f r t => GParseRecord (M1 D x f) r t where
-  gParseRecord p fieldmaps nr = M1 <$> gParseRecord p fieldmaps nr
+instance GParseRecord f r t i => GParseRecord (M1 D x f) r t i where
+  gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
-instance GParseRecord f r t => GParseRecord (M1 C x f) r t where
-  gParseRecord p fieldmaps nr = M1 <$> gParseRecord p fieldmaps nr
+instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
+  gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
-instance Reduce t s (FieldMapping s r f d e) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i a)) r t where
-  gParseRecord _ fieldMaps nr = M1 . K1 <$> fail ""
+instance Reduce t s (FieldMapping s r f d e) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
+  gParseRecord _ fieldMapping nr = M1 . K1 <$> parseByType
+    where parseByType :: C.Parser f
+          parseByType = case selectorMapping @t @s fieldMapping of
+            (name := fm) -> maybe (fail $ "No column " <> BC.unpack name) ((decoder fm <$>). C.parseField @d) (HM.lookup name nr)
+            (Splice _ (fm :: Codec r' f' d' e')) -> parseSplice (csvMap @d)
+              where parseSplice :: CsvMap d -> C.Parser f
+                    parseSplice (CsvMap (m :: m)) = decoder fm . to <$> gParseRecord @_ @d @m proxy# m nr
 
-instance (GParseRecord a r t, GParseRecord b r t) => GParseRecord (a :*: b) r t where
+-- TODO
+--instance Reduce t s (FieldMapping s r f d e) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
+--    gParseRecord _ fieldMapping nr = M1 . K1 <$> undefined
+
+instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where
   gParseRecord p sm mapping = do
     a <- gParseRecord p sm mapping
     b <- gParseRecord p sm mapping

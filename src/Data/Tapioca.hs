@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 --Remove later
 {-# LANGUAGE DeriveGeneric #-}
@@ -44,38 +45,37 @@ module Data.Tapioca
     CsvMap(..)
   , CsvMapped(..)
   , ByCsvMap(..)
-  , Header(..)
   , FieldMapping ((:=))
   , (:|)(..)
   , encode
   , decode
   , toRecord
   , toNamedRecord
-  , parseRecord
   , header
-  , mkCsvMap
   ) where
 
+import GHC.Exts
 import GHC.OverloadedLabels
 import GHC.Records
 import GHC.Generics
-import GHC.Exts
 import qualified Data.Csv as C
 
 import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Common
 import Data.Tapioca.Internal.Decode
-import Data.Tapioca.Internal.Decode.Generic
 import Data.Tapioca.Internal.Encode
 import Data.Tapioca.Internal.Types
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
 import qualified Data.ByteString as B
+
+import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as C
 import qualified Data.Csv.Builder as CB
 import qualified Data.Csv.Parser as CP
+import Data.Proxy
 import qualified Data.Vector as V
 
 -- $example-record
@@ -117,34 +117,30 @@ import qualified Data.Vector as V
 --mkCsvMap = CsvMap
 
 -- | Encode a list of items using our mapping
-encode :: forall r. CsvMapped r => Header -> [r] -> BL.ByteString
-encode withHeader items = BB.toLazyByteString $ case withHeader of
-  WithHeader -> CB.encodeHeader (header @r) <> recordItems
-  WithoutHeader -> recordItems
-  where recordItems = foldMap (CB.encodeRecord . ByCsvMap) items
+encode :: forall r t. CsvMapped r => EncodeIndexing r t -> C.HasHeader -> [r] -> BL.ByteString
+encode indexing hasHeader items = BB.toLazyByteString $ case indexing of
+  EncodeNamed -> hdr <> foldMap (CB.encodeNamedRecord (header @r)) items
+  EncodeOrdered -> hdr <> foldMap CB.encodeRecord items
+  where hdr = case hasHeader of
+          C.HasHeader -> CB.encodeHeader (header @r)
+          C.NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r. CsvMapped r => Header -> BL.ByteString -> Either String (V.Vector r)
-decode useHeader csv = C.runParser $ do
-   (mbHdr, record) <- toParser $ parseCsv @r proxy# csv useHeader
-   traverse (parseRecord @r (Record mbHdr)) record
+decode :: forall r t. CsvMapped r => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
+decode indexing csv = C.runParser $ do
+   records <- parseCsv @r indexing csv
+   traverse (parser indexing) records
+   where parser DecodeNamed = parseWithCsvMap @r
+         parser (DecodeOrdered _) = C.parseRecord -- Need to implement parseWithCsvMap for ordered
 
 -- Parse the required data from the csv file
-parseCsv :: CsvMapped r => Proxy# r -> BL.ByteString -> Header -> Either String (Maybe (V.Vector B.ByteString), C.Csv)
-parseCsv _ csv useHeader = AB.eitherResult . flip AB.parse csv $ do
-  hdr <- case useHeader of
-    WithHeader -> Just <$> (CP.header . fromIntegral . fromEnum) ','
-    WithoutHeader -> pure Nothing
-  records <- CP.csv C.defaultDecodeOptions
-  pure (hdr, records)
+parseCsv :: forall r t. CsvMapped r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
+parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
+    DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
+    DecodeOrdered C.HasHeader -> CP.header (toEnum . fromEnum $ ',') >> CP.csv C.defaultDecodeOptions
+    DecodeOrdered C.NoHeader ->  CP.csv C.defaultDecodeOptions
 
-data Dummy = Dummy { dt :: Int } deriving Generic
-
---type Fm1 = FieldMapping "dt" Dummy Int Int Int
+data Dummy = Dummy { dt :: Int } deriving (Generic, Show)
 
 instance CsvMapped Dummy where
   csvMap = CsvMap $ "Hi I'm" := #dt
-
-
-decodeTest :: C.Parser Dummy
-decodeTest = to <$> gParseRecord @_ @Dummy proxy# (csvMap @Dummy) mempty

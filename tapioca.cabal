@@ -22,11 +22,9 @@ library
         Data.Tapioca
     other-modules:
         Data.Tapioca.Internal.Types,
-        Data.Tapioca.Internal.ByCsvMap,
         Data.Tapioca.Internal.Common,
         Data.Tapioca.Internal.Encode,
-        Data.Tapioca.Internal.Decode
-        Data.Tapioca.Internal.Decode.Generic
+        Data.Tapioca.Internal.ByCsvMap
     hs-source-dirs: src
     default-language: Haskell2010
     ghc-options: -Wall -fprint-potential-instances
