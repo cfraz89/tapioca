@@ -3,11 +3,7 @@ module Data.Tapioca.Internal.Encode
   , toNamedRecord
   ) where
 
-import Data.Tapioca.Internal.Types
-  ( CsvMapped(..)
-  , FieldMapping(..)
-  , Codec(..)
-  )
+import Data.Tapioca.Internal.Types.Mapping
 
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM

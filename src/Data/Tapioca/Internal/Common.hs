@@ -2,11 +2,14 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Functions needed in both encoding and decoding
 module Data.Tapioca.Internal.Common (header, (?!), toParser, parseWithCsvMap) where
 
-import Data.Tapioca.Internal.Types
+import Data.Tapioca.Internal.Types.Mapping
 
 import GHC.Exts
 import GHC.Generics
@@ -34,7 +37,14 @@ toParser :: Either String a -> C.Parser a
 toParser (Left e) = fail e
 toParser (Right a) = pure a
 
-parseWithCsvMap :: forall r t. CsvMapped r => C.NamedRecord -> C.Parser r
-parseWithCsvMap nr = parseFrom (csvMap @r)
-    where parseFrom :: CsvMap r -> C.Parser r
-          parseFrom (CsvMap (m :: m)) = to <$> gParseRecord @(Rep r) @r @m  proxy# m nr
+
+class ParseWithCsvMap r t where 
+  parseWithCsvMap :: CsvMapped r => t -> C.Parser r
+
+instance Generic r => ParseWithCsvMap r C.NamedRecord where
+  parseWithCsvMap nr = parseFrom (csvMap @r)
+    where parseFrom (CsvMap (m :: m) :: CsvMap r) = to <$> gParseRecord @(Rep r) @r @m proxy# m nr
+
+instance ParseWithCsvMap r C.Record where
+  parseWithCsvMap r = parseFrom (csvMap @r)
+    where parseFrom (CsvMap (m :: m) :: CsvMap r) = to <$> gParseRecord @(Rep r) @r @m proxy# m r

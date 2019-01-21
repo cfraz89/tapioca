@@ -9,7 +9,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -49,33 +48,24 @@ module Data.Tapioca
   , (:|)(..)
   , encode
   , decode
-  , toRecord
-  , toNamedRecord
   , header
   ) where
 
-import GHC.Exts
-import GHC.OverloadedLabels
-import GHC.Records
 import GHC.Generics
-import qualified Data.Csv as C
 
 import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Common
-import Data.Tapioca.Internal.Decode
-import Data.Tapioca.Internal.Encode
-import Data.Tapioca.Internal.Types
+import Data.Tapioca.Internal.Types.Mapping
+import Data.Tapioca.Internal.Types.Indexing
+import Data.Tapioca.Internal.Types.Sep
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
-import qualified Data.ByteString as B
 
-import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as C
 import qualified Data.Csv.Builder as CB
 import qualified Data.Csv.Parser as CP
-import Data.Proxy
 import qualified Data.Vector as V
 
 -- $example-record
@@ -119,19 +109,20 @@ import qualified Data.Vector as V
 -- | Encode a list of items using our mapping
 encode :: forall r t. CsvMapped r => EncodeIndexing r t -> C.HasHeader -> [r] -> BL.ByteString
 encode indexing hasHeader items = BB.toLazyByteString $ case indexing of
-  EncodeNamed -> hdr <> foldMap (CB.encodeNamedRecord (header @r)) items
+  EncodeNamed -> hdr <> foldMap (CB.encodeNamedRecord (header @r)) (ByCsvMap <$> items)
   EncodeOrdered -> hdr <> foldMap CB.encodeRecord items
   where hdr = case hasHeader of
           C.HasHeader -> CB.encodeHeader (header @r)
           C.NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r t. CsvMapped r => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
+decode :: forall r t. (CsvMapped r, Generic r) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
 decode indexing csv = C.runParser $ do
    records <- parseCsv @r indexing csv
-   traverse (parser indexing) records
-   where parser DecodeNamed = parseWithCsvMap @r
-         parser (DecodeOrdered _) = C.parseRecord -- Need to implement parseWithCsvMap for ordered
+   let parse = case indexing of
+         DecodeNamed -> parseWithCsvMap
+         DecodeOrdered _ -> parseWithCsvMap
+   traverse parse records
 
 -- Parse the required data from the csv file
 parseCsv :: forall r t. CsvMapped r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)

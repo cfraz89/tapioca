@@ -6,7 +6,7 @@
 
 module Data.Tapioca.Internal.ByCsvMap where
 
-import Data.Tapioca.Internal.Types
+import Data.Tapioca.Internal.Types.Mapping
 import Data.Tapioca.Internal.Common (header, parseWithCsvMap)
 import Data.Tapioca.Internal.Encode (toRecord, toNamedRecord)
 
