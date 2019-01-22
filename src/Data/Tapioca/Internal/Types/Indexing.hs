@@ -11,7 +11,3 @@ import qualified Data.Csv as C
 data DecodeIndexing r t where
   DecodeNamed :: DecodeIndexing r C.NamedRecord -- assumes presence of header
   DecodeOrdered :: DecodeIndexing r C.Record
-
-data EncodeIndexing r t where
-  EncodeNamed :: C.ToNamedRecord r => EncodeIndexing r C.NamedRecord
-  EncodeOrdered :: C.ToRecord r => EncodeIndexing r C.NamedRecord

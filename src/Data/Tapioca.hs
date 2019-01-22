@@ -45,7 +45,7 @@ module Data.Tapioca
   , CsvMapped(..)
   , ByCsvMap(..)
   , DecodeIndexing(..)
-  , FieldMapping ((:=))
+  , FieldMapping ((:=>))
   , (:|)(..)
   , encode
   , decode
@@ -68,7 +68,7 @@ import qualified Data.Csv as C
 import qualified Data.Csv.Builder as CB
 import qualified Data.Csv.Parser as CP
 import qualified Data.Vector as V
-import Data.Profunctor
+
 -- $example-record
 -- @
 -- data TestItem = TestItem
@@ -108,10 +108,9 @@ import Data.Profunctor
 --mkCsvMap = CsvMap
 
 -- | Encode a list of items using our mapping
-encode :: forall r t. CsvMapped r => EncodeIndexing r t -> C.HasHeader -> [r] -> BL.ByteString
-encode indexing hasHeader items = BB.toLazyByteString $ case indexing of
-  EncodeNamed -> hdr <> foldMap (CB.encodeNamedRecord (header @r)) (ByCsvMap <$> items)
-  EncodeOrdered -> hdr <> foldMap CB.encodeRecord items
+encode :: forall r. CsvMapped r => C.HasHeader -> [r] -> BL.ByteString
+encode hasHeader items = BB.toLazyByteString $
+  hdr <> foldMap (CB.encodeRecord . ByCsvMap) items
   where hdr = case hasHeader of
           C.HasHeader -> CB.encodeHeader (header @r)
           C.NoHeader -> mempty
@@ -135,5 +134,5 @@ data Dummy = Dummy { dt :: Int, dt2 :: Int} deriving (Generic, Show)
 
 instance CsvMapped Dummy where
   csvMap = CsvMap
-     $ "Hi I'm" := #dt
-    :| "Test"   := #dt2
+    $ "Column 1" :=> #dt
+   :| "Column 2" :=> #dt2

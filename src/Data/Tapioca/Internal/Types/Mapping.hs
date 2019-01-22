@@ -48,9 +48,9 @@ instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, Generic f, Generic e, Gener
   fromLabel = Splice (proxy# @m) (Codec (getField @x) id)
 
 -- Types that get joined
-infixl 2 :=
+infixl 2 :=>
 data FieldMapping (s :: Symbol) r f d e
-  = C.FromField d => B.ByteString := (Codec r f d e)
+  = C.FromField d => B.ByteString :=> (Codec r f d e)
   | forall m. (CsvMapped d, Generic d) => Splice (Proxy# m) (Codec r f d e)
 
 -- Class for terms which can be reduced to a simpler type
@@ -62,7 +62,7 @@ class Reduce t (s :: Symbol) r f d e  | t s -> r f d e where
 -- Base case
 instance HasField s r f => Reduce (FieldMapping s' r f d e) s r f d e where
   type Match (FieldMapping s' r f d e) s = EqSymbol s' s
-  selectorMapping (n := fm) = n := fm
+  selectorMapping (n :=> fm) = n :=> fm
   selectorMapping (Splice p s) = Splice p s
 
 -- Inductive case
@@ -70,6 +70,7 @@ instance (Reduce tt s r f d e, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1
   type Match (t1 :| t2) s = Match t1 s || Match t2 s
   selectorMapping t = selectorMapping @tt @s (picked @t1 @t2 @m t)
 
+-- f :: Generic representation
 -- r :: record type we are parsing to
 -- t :: Our CsvMap unwrapped type
 -- i :: Indexing type - Record or NamedRecord
@@ -87,7 +88,7 @@ instance (Reduce t s r f d e)  => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p
   gParseRecord _ fieldMapping nr = M1 . K1 <$> parseByType
     where parseByType :: C.Parser f
           parseByType = case selectorMapping @t @s fieldMapping of
-            (name := fm) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
+            (name :=> fm) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
             (Splice _ (fm :: Codec r' f' d' e')) -> parseSplice (csvMap @d)
               where parseSplice :: CsvMap d -> C.Parser f
                     parseSplice (CsvMap (m :: m)) = decoder fm . to <$> gParseRecord @_ @d @m proxy# m nr

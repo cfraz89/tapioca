@@ -6,9 +6,9 @@
 
 module Data.Tapioca.Internal.ByCsvMap where
 
+import Data.Tapioca.Internal.Encode
 import Data.Tapioca.Internal.Types.Mapping
 import Data.Tapioca.Internal.Common (header, parseWithCsvMap)
-import Data.Tapioca.Internal.Encode (toRecord, toNamedRecord)
 
 import qualified Data.Csv as C
 
@@ -25,8 +25,8 @@ instance CsvMapped r => C.ToNamedRecord (ByCsvMap r) where
 instance CsvMapped r => C.DefaultOrdered (ByCsvMap r) where
   headerOrder _ = header @r
 
-instance C.FromRecord r => C.FromRecord (ByCsvMap r) where
-  parseRecord = (ByCsvMap <$>) . C.parseRecord
+instance (CsvMapped r, GenericCsvDecode r t C.Record) => C.FromRecord (ByCsvMap r) where
+  parseRecord = (ByCsvMap <$>) . parseWithCsvMap
 
 instance (CsvMapped r, GenericCsvDecode r t C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
   parseNamedRecord = (ByCsvMap <$>) . parseWithCsvMap
