@@ -44,6 +44,7 @@ module Data.Tapioca
     CsvMap(..)
   , CsvMapped(..)
   , ByCsvMap(..)
+  , DecodeIndexing(..)
   , FieldMapping ((:=))
   , (:|)(..)
   , encode
@@ -67,7 +68,7 @@ import qualified Data.Csv as C
 import qualified Data.Csv.Builder as CB
 import qualified Data.Csv.Parser as CP
 import qualified Data.Vector as V
-
+import Data.Profunctor
 -- $example-record
 -- @
 -- data TestItem = TestItem
@@ -121,17 +122,18 @@ decode indexing csv = C.runParser $ do
    records <- parseCsv @r indexing csv
    let parse = case indexing of
          DecodeNamed -> parseWithCsvMap
-         DecodeOrdered _ -> parseWithCsvMap
+         DecodeOrdered -> parseWithCsvMap
    traverse parse records
 
 -- Parse the required data from the csv file
 parseCsv :: forall r t. CsvMapped r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
 parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
-    DecodeOrdered C.HasHeader -> CP.header (toEnum . fromEnum $ ',') >> CP.csv C.defaultDecodeOptions
-    DecodeOrdered C.NoHeader ->  CP.csv C.defaultDecodeOptions
+    DecodeOrdered -> CP.csv C.defaultDecodeOptions
 
-data Dummy = Dummy { dt :: Int } deriving (Generic, Show)
+data Dummy = Dummy { dt :: Int, dt2 :: Int} deriving (Generic, Show)
 
 instance CsvMapped Dummy where
-  csvMap = CsvMap $ "Hi I'm" := #dt
+  csvMap = CsvMap
+     $ "Hi I'm" := #dt
+    :| "Test"   := #dt2

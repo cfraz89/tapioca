@@ -9,8 +9,8 @@ import qualified Data.Csv as C
 -- to the order that fields are specified in the csvMap.
 
 data DecodeIndexing r t where
-  DecodeNamed :: DecodeIndexing r C.NamedRecord
-  DecodeOrdered :: C.HasHeader -> DecodeIndexing r C.Record
+  DecodeNamed :: DecodeIndexing r C.NamedRecord -- assumes presence of header
+  DecodeOrdered :: DecodeIndexing r C.Record
 
 data EncodeIndexing r t where
   EncodeNamed :: C.ToNamedRecord r => EncodeIndexing r C.NamedRecord
