@@ -133,5 +133,5 @@ data Dummy = Dummy { dt :: Int, dt2 :: String} deriving (Generic, Show)
 
 instance CsvMapped Dummy where
   csvMap = CsvMap
-    $ "Column 1" <-> #dt
-   :| "Column 2" <-> #dt2
+    $ "Column 1" <-> field #dt
+   :| "Column 2" <-> field #dt2

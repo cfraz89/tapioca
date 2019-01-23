@@ -44,11 +44,13 @@ data CsvMap r = forall m.
 class CsvMapped r where
   csvMap :: CsvMap r
 
-  (<->) :: forall s f. (HasField s r f, C.FromField f) => B.ByteString -> SelectorProxy s -> FieldMapping s r f
-  name <-> _ = Field name idCodec
-
+  (<->) :: forall s f d e. (HasField s r f, C.FromField f, C.FromField d) => B.ByteString -> MapTo s f d e -> FieldMapping s r f
+  name <-> (MapTo _ codec)  = Field name codec
 
 data MapTo s f d e = MapTo (SelectorProxy s) (Codec f d e)
+
+field :: (f~d, f~e) => SelectorProxy s -> MapTo s f d e
+field s = MapTo s idCodec
 
 -- | Our joining type for csv Maps
 infixl 1 :|
