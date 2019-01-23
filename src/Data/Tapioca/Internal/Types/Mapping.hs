@@ -47,16 +47,19 @@ class CsvMapped r where
   (<->) :: forall s f. (HasField s r f, C.FromField f) => B.ByteString -> SelectorProxy s -> FieldMapping s r f
   name <-> _ = Field name idCodec
 
+
+data MapTo s f d e = MapTo (SelectorProxy s) (Codec f d e)
+
 -- | Our joining type for csv Maps
 infixl 1 :|
 data a :| b = a :| b
 
 data FieldMapping (s :: Symbol) r f
-  = forall d e. C.FromField d => Field B.ByteString (Codec s r f d e)
-  | forall d e. (CsvMapped d, Generic d) => Splice (Codec s r f d e)
+  = forall d e. C.FromField d => Field B.ByteString (Codec f d e)
+  | forall d e. (CsvMapped d, Generic d) => Splice (Codec f d e)
 
 instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, Generic f) => IsLabel x (FieldMapping x r f) where
-  fromLabel = Splice @x @r @f @d @e  (Codec (getField @x) id)
+  fromLabel = Splice @x @r @f @d @e  (Codec id id)
 
 data SelectorProxy (s :: Symbol) = SelectorProxy
 
@@ -117,9 +120,9 @@ instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
 instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping nr = M1 . K1 <$> parseByType
     where parseByType :: C.Parser f
-          parseByType = case selectorMapping @t @s fieldMapping of
-            (Field name (fm :: Codec s r f d e)) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
-            (Splice (fm :: Codec s r f d e)) -> parseSplice (csvMap @d)
+          parseByType = case selectorMapping @t @s @r fieldMapping of
+            (Field name (fm :: Codec f d e)) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
+            (Splice (fm :: Codec f d e)) -> parseSplice (csvMap @d)
               where parseSplice :: CsvMap d -> C.Parser f
                     parseSplice (CsvMap (m :: m)) = decoder fm . to <$> gParseRecord @_ @d @m proxy# m nr
 

@@ -4,6 +4,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Data.Tapioca.Internal.Types.Codec(Codec(..), idCodec) where
 
@@ -19,19 +22,19 @@ import GHC.TypeLits
 -- f - field type with record
 -- d - Type to decode as
 -- e - type to encode as
-data Codec (s :: Symbol) r f d e = Codec
-  { encoder :: r -> e
+data Codec f d e = Codec
+  {  encoder :: f -> e
   , decoder :: d -> f
   }
 
-instance Profunctor (Codec s r f) where
+instance Profunctor (Codec f) where
   dimap d e fm = fm
     { encoder = e . encoder fm
     , decoder = decoder fm . d
     }
 
-idCodec :: forall x r f. HasField x r f => Codec x r f f f
-idCodec = Codec (getField @x) id
+idCodec :: (f~d, f~e) => Codec f d e
+idCodec = Codec id id
 
-instance (HasField x r f, f ~ d, f ~ e, C.ToField e, C.FromField d) => IsLabel x (Codec x r f d e) where
-  fromLabel = Codec (getField @x) id
+instance (f~d, f~e) => IsLabel x (Codec f d e) where
+  fromLabel = Codec id id
