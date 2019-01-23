@@ -45,7 +45,7 @@ module Data.Tapioca
   , CsvMapped(..)
   , ByCsvMap(..)
   , DecodeIndexing(..)
-  , FieldMapping ((:=>))
+  , FieldMapping(..)
   , (:|)(..)
   , encode
   , decode
@@ -56,8 +56,9 @@ import GHC.Generics
 
 import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Common
-import Data.Tapioca.Internal.Types.Mapping
+import Data.Tapioca.Internal.Types.Codec
 import Data.Tapioca.Internal.Types.Indexing
+import Data.Tapioca.Internal.Types.Mapping
 import Data.Tapioca.Internal.Types.Sep
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
@@ -130,9 +131,7 @@ parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case in
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
     DecodeOrdered -> CP.csv C.defaultDecodeOptions
 
-data Dummy = Dummy { dt :: Int, dt2 :: Int} deriving (Generic, Show)
+data Dummy = Dummy { dt :: Int, dt2 :: String} deriving (Generic, Show)
 
 instance CsvMapped Dummy where
-  csvMap = CsvMap
-    $ "Column 1" :=> #dt
-   :| "Column 2" :=> #dt2
+  csvMap = CsvMap $ "Column 1" <-> #dt :| "Column 2" <-> #dt2
