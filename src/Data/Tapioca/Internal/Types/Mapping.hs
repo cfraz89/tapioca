@@ -31,6 +31,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
 import Data.Kind
+import Data.Type.Bool
 
 type GenericCsvDecode r t i = (GParseRecord (Rep r) r t i, Generic r)
 
@@ -44,47 +45,60 @@ class CsvMapped r where
   csvMap :: CsvMap r
 
   (<->) :: forall s f. (HasField s r f, C.FromField f) => B.ByteString -> SelectorProxy s -> FieldMapping s r f
-  bs <-> _ = Field bs idCodec
+  name <-> _ = Field name idCodec
 
-data FieldMapping (s :: Symbol) r f =
-  forall d e. C.FromField d => Field B.ByteString (Codec s r f d e)
-  | forall d e m. (CsvMapped d, Generic d) => Splice (Proxy# m) (Codec s r f d e)
+-- | Our joining type for csv Maps
+infixl 1 :|
+data a :| b = a :| b
 
+data FieldMapping (s :: Symbol) r f
+  = forall d e. C.FromField d => Field B.ByteString (Codec s r f d e)
+  | forall d e. (CsvMapped d, Generic d) => Splice (Codec s r f d e)
 
+instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, Generic f) => IsLabel x (FieldMapping x r f) where
+  fromLabel = Splice @x @r @f @d @e  (Codec (getField @x) id)
 
-instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, Generic f, Generic e, GenericCsvDecode d m C.NamedRecord) => IsLabel x (FieldMapping x r f) where
-  fromLabel = Splice @x @r @f @d @e (proxy# @m) (Codec (getField @x) id)
-
--- Types that get joined
---infixl 2 (=>)
 data SelectorProxy (s :: Symbol) = SelectorProxy
 
 instance (s~s') => IsLabel s (SelectorProxy s') where
   fromLabel = SelectorProxy
 
+type family Match t s where
+  Match (FieldMapping s r f) s' = EqSymbol s s'
+  Match (t1 :| t2) s = Match t1 s || Match t2 s
+
+type family OrdBool (o :: Ordering) :: Bool where
+  OrdBool 'LT = 'False
+  OrdBool 'EQ = 'True
+  OrdBool 'GT = 'False
+
+type EqSymbol s s' = OrdBool (CmpSymbol s s')
+
+class PickMatch (t1 :: Type) (t2 :: Type) (b :: Bool) where
+  type Picked t1 t2 b
+  picked :: t1 :| t2 -> Picked t1 t2 b
+
+instance PickMatch t1 t2 'True where
+  type Picked t1 t2 'True = t1
+  picked (t1 :| _) = t1
+
+instance PickMatch t1 t2 'False where
+  type Picked t1 t2 'False = t2
+  picked (_ :| t2) = t2
+
 
 -- Class for terms which can be reduced to a simpler type
 -- The goal is to reduce to FieldMapping
 class Reduce t (s :: Symbol) r f where
-  --type Match t s :: Bool
   selectorMapping :: t -> FieldMapping s r f
 
 -- Base case
-instance (r~r', f~f') => Reduce (FieldMapping s r f) s r' f' where
-  --type Match (FieldMapping s' r f d e) s = EqSymbol s' s
+instance (r~r',f~f') => Reduce (FieldMapping s r f) s r' f' where
   selectorMapping = id
 
-instance Reduce (FieldMapping s r f :| ts) s r f where
-  selectorMapping (t :| _) = t
-
---instance {-# Overlapping #-} Reduce ts s r f d e => Reduce (FieldMapping s' r' f' d' e' :| ts) s r f d e where
---  selectorMapping (_ :| ts) = selectorMapping ts
-
-
 -- Inductive case
---instance (Reduce tt s r f d e, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m, t1 ~ FieldMapping s r f d e) => Reduce (t1 :| t2) s r f d e where
---  type Match (t1 :| t2) s = Match t1 s || Match t2 s
---  selectorMapping t = selectorMapping @tt @s (picked @t1 @t2 @m t)
+instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f where
+ selectorMapping t = selectorMapping @tt @s (picked @t1 @t2 @m t)
 
 -- f :: Generic representation
 -- r :: record type we are parsing to
@@ -105,7 +119,7 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
     where parseByType :: C.Parser f
           parseByType = case selectorMapping @t @s fieldMapping of
             (Field name (fm :: Codec s r f d e)) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
-            (Splice _ (fm :: Codec s r f d e)) -> parseSplice (csvMap @d)
+            (Splice (fm :: Codec s r f d e)) -> parseSplice (csvMap @d)
               where parseSplice :: CsvMap d -> C.Parser f
                     parseSplice (CsvMap (m :: m)) = decoder fm . to <$> gParseRecord @_ @d @m proxy# m nr
 
@@ -113,8 +127,8 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
 instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping nr = M1 . K1 <$> undefined
 
-instance (GParseRecord a r t1 i, GParseRecord b r t2 i) => GParseRecord (a :*: b) r (t1 :| t2) i where
-  gParseRecord p (sm :| sms) mapping = do
-    a <- gParseRecord p sm mapping
-    b <- gParseRecord p sms mapping
+instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where
+  gParseRecord p t mapping = do
+    a <- gParseRecord p t mapping
+    b <- gParseRecord p t mapping
     pure $ a :*: b

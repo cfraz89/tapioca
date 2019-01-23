@@ -5,9 +5,16 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 
 -- | Functions needed in both encoding and decoding
-module Data.Tapioca.Internal.Common (header, (?!), toParser, parseWithCsvMap) where
+module Data.Tapioca.Internal.Common
+  ( header
+  , (?!)
+  , toParser
+  , parseWithCsvMap
+  , DecodeIndexing(..)
+  ) where
 
 import Data.Tapioca.Internal.Types.Mapping
 
@@ -37,6 +44,9 @@ toParser :: Either String a -> C.Parser a
 toParser (Left e) = fail e
 toParser (Right a) = pure a
 
+data DecodeIndexing r t where
+  DecodeNamed :: DecodeIndexing r C.NamedRecord -- assumes presence of header
+  DecodeOrdered :: DecodeIndexing r C.Record
 
 class ParseWithCsvMap r t where 
   parseWithCsvMap :: CsvMapped r => t -> C.Parser r
