@@ -44,8 +44,8 @@ data CsvMap r = forall m.
 class CsvMapped r where
   csvMap :: CsvMap r
 
-  (<->) :: forall s f d e. (C.FromField f, C.FromField d) => B.ByteString -> SCodec s r f d e -> FieldMapping s r f
-  name <-> codec  = Field name (trimCodec codec)
+  (<->) :: forall s f d e. (C.FromField f, C.FromField d) => B.ByteString -> Codec s r f d e -> FieldMapping s r f
+  name <-> codec  = Field name codec
 
 --data MapTo s f d e = MapTo (SelectorProxy s) (Codec f d e)
 
@@ -57,11 +57,11 @@ infixl 1 :|
 data a :| b = a :| b
 
 data FieldMapping (s :: Symbol) r f
-  = forall d e. C.FromField d => Field B.ByteString (Codec r f d e)
-  | forall d e. (CsvMapped d, Generic d) => Splice (Codec r f d e)
+  = forall d e. C.FromField d => Field B.ByteString (Codec s r f d e)
+  | forall d e. (CsvMapped d, Generic d) => Splice (Codec s r f d e)
 
-instance (HasField x r f, f ~ d, f ~ e, CsvMapped f, Generic f) => IsLabel x (FieldMapping x r f) where
-  fromLabel = Splice @x @r @f @d @e  (Codec id id)
+instance (HasField x r f, r~f, f ~ d, f ~ e, CsvMapped f, Generic f) => IsLabel x (FieldMapping x r f) where
+  fromLabel = Splice @x @r @f @d @e  (Codec id id id)
 
 data SelectorProxy (s :: Symbol) = SelectorProxy
 
@@ -123,8 +123,8 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
   gParseRecord _ fieldMapping nr = M1 . K1 <$> parseByType
     where parseByType :: C.Parser f
           parseByType = case selectorMapping @t @s @r fieldMapping of
-            (Field name (fm :: Codec r f d e)) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
-            (Splice (fm :: Codec r f d e)) -> parseSplice (csvMap @d)
+            (Field name (fm :: Codec s r f d e)) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
+            (Splice (fm :: Codec s r f d e)) -> parseSplice (csvMap @d)
               where parseSplice :: CsvMap d -> C.Parser f
                     parseSplice (CsvMap (m :: m)) = decoder fm . to <$> gParseRecord @_ @d @m proxy# m nr
 
