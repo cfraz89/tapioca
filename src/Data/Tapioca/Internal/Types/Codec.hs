@@ -8,7 +8,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Data.Tapioca.Internal.Types.Codec(Codec(..), idCodec) where
+module Data.Tapioca.Internal.Types.Codec(Codec(..), SCodec(..), trimCodec, idCodec) where
 
 import GHC.OverloadedLabels
 import GHC.Records
@@ -22,19 +22,27 @@ import GHC.TypeLits
 -- f - field type with record
 -- d - Type to decode as
 -- e - type to encode as
-data Codec f d e = Codec
-  {  encoder :: f -> e
+data SCodec (s :: Symbol) r f d e = SCodec
+  { sEncoder :: f -> e
+  , sDecoder :: d -> f
+  }
+
+data Codec r f d e = Codec
+  { encoder :: f -> e
   , decoder :: d -> f
   }
 
-instance Profunctor (Codec f) where
+instance Profunctor (SCodec s r f) where
   dimap d e fm = fm
-    { encoder = e . encoder fm
-    , decoder = decoder fm . d
+    { sEncoder = e . sEncoder fm
+    , sDecoder = sDecoder fm . d
     }
 
-idCodec :: (f~d, f~e) => Codec f d e
+trimCodec :: SCodec s r f d e -> Codec r f d e
+trimCodec (SCodec enc dec) = Codec enc dec
+
+idCodec :: (f~d, f~e) => Codec r f d e
 idCodec = Codec id id
 
-instance (f~d, f~e) => IsLabel x (Codec f d e) where
-  fromLabel = Codec id id
+instance (f~d, f~e, HasField x r f, x~x', r~r', f~f') => IsLabel x (SCodec x' r' f' d e) where
+  fromLabel = SCodec id id
