@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -12,8 +13,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Data.Tapioca.Internal.Types.Mapping where
 
@@ -24,12 +26,12 @@ import GHC.Records
 import GHC.TypeLits
 
 import Data.Tapioca.Internal.Types.Codec
-import Data.Tapioca.Internal.Types.Sep
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Vector as V
 import Data.Kind
 import Data.Type.Bool
 
@@ -61,16 +63,20 @@ data FieldMapping (s :: Symbol) r f
   | forall d e. (CsvMapped d, Generic d) => Splice (Codec s r f d e)
 
 instance (HasField x r f, r~f, f ~ d, f ~ e, CsvMapped f, Generic f) => IsLabel x (FieldMapping x r f) where
-  fromLabel = Splice @x @r @f @d @e  (Codec id id id)
+  fromLabel = Splice (Codec id id id)
 
 data SelectorProxy (s :: Symbol) = SelectorProxy
 
 instance (s~s') => IsLabel s (SelectorProxy s') where
   fromLabel = SelectorProxy
 
-type family Match t s where
-  Match (FieldMapping s r f) s' = EqSymbol s s'
+type family Match t s :: Bool where
+  Match (FieldMapping s _ _) s' = EqSymbol s s'
   Match (t1 :| t2) s = Match t1 s || Match t2 s
+
+type family Index t s :: Nat where
+  Index (FieldMapping s _ _) s = 0
+  Index (t1 :| t2) s = If (Match t1 s) (Index t1 s) (1 + Index t2 s)
 
 type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'LT = 'False
@@ -103,7 +109,7 @@ instance (r~r',f~f') => Reduce (FieldMapping s r f) s r' f' where
 
 -- Inductive case
 instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f where
- selectorMapping t = selectorMapping @tt @s (picked @t1 @t2 @m t)
+ selectorMapping t = selectorMapping (picked @_ @_ @m t)
 
 -- f :: Generic representation
 -- r :: record type we are parsing to
@@ -120,18 +126,29 @@ instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
   gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
 instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
-  gParseRecord _ fieldMapping nr = M1 . K1 <$> parseByType
-    where parseByType :: C.Parser f
-          parseByType = case selectorMapping @t @s @r fieldMapping of
-            (Field name (fm :: Codec s r f d e)) -> maybe (fail $ "No column " <> BC.unpack name <> " in header") ((decoder fm <$>) . C.parseField @d) (HM.lookup name nr)
-            (Splice (fm :: Codec s r f d e)) -> parseSplice (csvMap @d)
-              where parseSplice :: CsvMap d -> C.Parser f
-                    parseSplice (CsvMap (m :: m)) = decoder fm . to <$> gParseRecord @_ @d @m proxy# m nr
+  gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
+    where parseByType = case selectorMapping fieldMapping of
+            Field name fm -> maybe (fail errMsg) decode val 
+              where errMsg = "No column " <> BC.unpack name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
+                    val = HM.lookup name namedRecord
+                    decode = (decoder fm <$>) . C.parseField
+            Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
+              where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm namedRecord
 
--- TODO
-instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
-  gParseRecord _ fieldMapping nr = M1 . K1 <$> undefined
+instance (Reduce t s r f, idx~Index t s, KnownNat idx) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
+  gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
+    where parseByType = case selectorMapping fieldMapping of
+            Field _ fm -> maybe (fail errMsg) decode val
+              where errMsg = "Can't parse item at index " <> show idx <> " in row: " <> bsVectorString (V.toList record)
+                    decode = (decoder fm <$>) . C.parseField
+                    idx = natVal' @idx proxy#
+                    val = record V.!? fromIntegral idx
+            Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
+              where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm record
 
+bsVectorString :: [B.ByteString] -> String
+bsVectorString = BC.unpack . BC.intercalate ","
+                           
 instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where
   gParseRecord p t mapping = do
     a <- gParseRecord p t mapping

@@ -24,7 +24,6 @@ library
         Data.Tapioca.Internal.Common,
         Data.Tapioca.Internal.Encode,
         Data.Tapioca.Internal.Types.Codec,
-        Data.Tapioca.Internal.Types.Indexing,
         Data.Tapioca.Internal.Types.Sep,
         Data.Tapioca.Internal.Types.Mapping,
         Data.Tapioca.Internal.ByCsvMap

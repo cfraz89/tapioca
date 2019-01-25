@@ -6,6 +6,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 -- | Functions needed in both encoding and decoding
 module Data.Tapioca.Internal.Common
@@ -46,15 +48,15 @@ toParser (Right a) = pure a
 
 data DecodeIndexing r t where
   DecodeNamed :: DecodeIndexing r C.NamedRecord -- assumes presence of header
-  DecodeOrdered :: DecodeIndexing r C.Record
+  DecodeOrdered :: C.HasHeader -> DecodeIndexing r C.Record
 
 class ParseWithCsvMap r t where 
   parseWithCsvMap :: CsvMapped r => t -> C.Parser r
 
 instance Generic r => ParseWithCsvMap r C.NamedRecord where
-  parseWithCsvMap nr = parseFrom (csvMap @r)
-    where parseFrom (CsvMap (m :: m) :: CsvMap r) = to <$> gParseRecord @(Rep r) @r @m proxy# m nr
+  parseWithCsvMap namedRecord = parseFrom csvMap
+    where parseFrom (CsvMap m :: _ r) = to <$> gParseRecord @_ @r proxy# m namedRecord
 
 instance ParseWithCsvMap r C.Record where
-  parseWithCsvMap r = parseFrom (csvMap @r)
-    where parseFrom (CsvMap (m :: m) :: CsvMap r) = to <$> gParseRecord @(Rep r) @r @m proxy# m r
+  parseWithCsvMap record = parseFrom csvMap
+    where parseFrom (CsvMap m :: _ r) = to <$> gParseRecord @_ @r proxy# m record

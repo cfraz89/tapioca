@@ -50,6 +50,7 @@ module Data.Tapioca
   , encode
   , decode
   , header
+  , C.HasHeader(..)
   ) where
 
 import GHC.Generics
@@ -116,17 +117,18 @@ encode hasHeader items = BB.toLazyByteString $
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
 decode :: forall r t. (CsvMapped r, Generic r) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
 decode indexing csv = C.runParser $ do
-   records <- parseCsv @r indexing csv
+   records <- parseCsv indexing csv
    let parse = case indexing of
          DecodeNamed -> parseWithCsvMap
-         DecodeOrdered -> parseWithCsvMap
+         DecodeOrdered _ -> parseWithCsvMap
    traverse parse records
 
 -- Parse the required data from the csv file
 parseCsv :: forall r t. CsvMapped r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
 parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
-    DecodeOrdered -> CP.csv C.defaultDecodeOptions
+    DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
+    DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
 
 data Dummy = Dummy { dt :: Int, dt2 :: String} deriving (Generic, Show)
 
