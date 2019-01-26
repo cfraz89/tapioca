@@ -26,6 +26,7 @@ import GHC.Records
 import GHC.TypeLits
 
 import Data.Tapioca.Internal.Types.Codec
+import Data.Tapioca.Internal.Types.Separator
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
@@ -54,13 +55,15 @@ class CsvMapped r where
 --field :: (f~d, f~e) => SelectorProxy s -> MapTo s f d e
 --field s = MapTo s idCodec
 
--- | Our joining type for csv Maps
-infixl 1 :|
-data a :| b = a :| b
+data FieldMapping (s :: Symbol) r f where
+  Field :: forall s r f d e. C.FromField d => B.ByteString -> Codec s r f d e -> FieldMapping s r f
+  Splice :: forall s r f d e. (CsvMapped d, Generic d) =>  Codec s r f d e -> FieldMapping s r f
 
-data FieldMapping (s :: Symbol) r f
-  = forall d e. C.FromField d => Field B.ByteString (Codec s r f d e)
-  | forall d e. (CsvMapped d, Generic d) => Splice (Codec s r f d e)
+-- newtype EncodeItem = EncodeItem (B.ByteString -> B.ByteString)
+-- instance HFoldable (FieldMapping s r f) EncodeItem where
+--   foldVal m = case m of
+--     Field _ codec -> decoder codec
+--     Splice codec -> hFoldMap 
 
 instance (HasField x r f, r~f, f ~ d, f ~ e, CsvMapped f, Generic f) => IsLabel x (FieldMapping x r f) where
   fromLabel = Splice (Codec id id id)
@@ -70,10 +73,12 @@ data SelectorProxy (s :: Symbol) = SelectorProxy
 instance (s~s') => IsLabel s (SelectorProxy s') where
   fromLabel = SelectorProxy
 
+-- Type family to determine whether an arbitrary selector matches that of our mapping
 type family Match t s :: Bool where
   Match (FieldMapping s _ _) s' = EqSymbol s s'
   Match (t1 :| t2) s = Match t1 s || Match t2 s
 
+-- Finds the correct index within a record of a mapping
 type family Index t s :: Nat where
   Index (FieldMapping s _ _) s = 0
   Index (t1 :| t2) s = If (Match t1 s) (Index t1 s) (1 + Index t2 s)
@@ -128,7 +133,7 @@ instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
 instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping fieldMapping of
-            Field name fm -> maybe (fail errMsg) decode val 
+            Field name fm -> maybe (fail errMsg) decode val
               where errMsg = "No column " <> BC.unpack name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
                     val = HM.lookup name namedRecord
                     decode = (decoder fm <$>) . C.parseField
