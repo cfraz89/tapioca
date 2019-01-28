@@ -8,7 +8,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Data.Tapioca.Internal.Types.Codec(Codec(..)) where
+module Data.Tapioca.Internal.Types.Codec(Codec(..), encode) where
 
 import GHC.OverloadedLabels
 import GHC.Records
@@ -26,6 +26,9 @@ data Codec (s :: Symbol) r f d e = Codec
   , encoder :: f -> e
   , decoder :: d -> f
   }
+
+encode :: f -> Codec s r f d e -> e
+encode r codec = encoder codec r  
 
 instance Profunctor (Codec s r f) where
   dimap d e fm = fm

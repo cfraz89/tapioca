@@ -57,6 +57,7 @@ import GHC.Generics
 
 import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Common
+import Data.Tapioca.Internal.Encode
 import Data.Tapioca.Internal.Types.Mapping
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
@@ -109,7 +110,7 @@ import qualified Data.Vector as V
 -- | Encode a list of items using our mapping
 encode :: forall r. CsvMapped r => C.HasHeader -> [r] -> BL.ByteString
 encode hasHeader items = BB.toLazyByteString $
-  hdr <> foldMap (CB.encodeRecord . ByCsvMap) items
+  hdr <> mconcat (CB.encodeRecord . toRecord <$> items)
   where hdr = case hasHeader of
           C.HasHeader -> CB.encodeHeader (header @r)
           C.NoHeader -> mempty
@@ -131,6 +132,7 @@ parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case in
     DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
 
 data Dummy = Dummy { dt :: Int, dt2 :: String} deriving (Generic, Show)
+data SpliceDummy = SpliceDummy { sd1 :: String, sd2 :: Int} deriving (Generic, Show)
 
 instance CsvMapped Dummy where
   csvMap = CsvMap $ "Column 1" <-> #dt :| "Column 2" <-> #dt2
