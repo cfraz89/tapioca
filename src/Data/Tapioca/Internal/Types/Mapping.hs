@@ -14,39 +14,39 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Data.Tapioca.Internal.Types.Mapping where
+
+import Data.Tapioca.Internal.Types.Codec
+import Data.Tapioca.Internal.Common (bsVectorString)
 
 import GHC.Exts
 import GHC.Generics
 import GHC.OverloadedLabels
 import GHC.Records
 import GHC.TypeLits
-import Debug.Trace
-import Data.Tapioca.Internal.Types.Codec
 
+import Control.Monad.Reader
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Vector as V
 import Data.Kind
 import Data.Type.Bool
-import Control.Monad.Reader
+import qualified Data.Vector as V
 
 type GenericCsvDecode r t i = (GParseRecord (Rep r) r t i, Generic r)
 
 data CsvMap r = forall m.
   ( GenericCsvDecode r m C.NamedRecord
   , GenericCsvDecode r m C.Record
-  , HFoldVal m (Reader r (V.Vector C.Field))
-  , HFoldable (Fold m) (Reader r (V.Vector C.Field)) -- For encoding values
-  , HFoldable (Fold m) C.Header -- To List headers
+  , HFoldable m (Reader r (V.Vector C.Field)) -- For encode ToRecord
+  , HFoldable m C.Header -- To List headers
   ) => CsvMap m
 
+-- Our joining/induction type for records
 infixl 1 :|
 data a :| b = a :| b
 
@@ -60,7 +60,7 @@ class CsvMapped r where
 data FieldMapping (s :: Symbol) r f (w :: Nat) where
   Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f 1
   Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e, C.ToRecord e, HFoldVal (CsvMap e) C.Header) =>  Codec s r f d e -> FieldMapping s r f (Width d)
-  
+
 -- Tracking of how many columns a type consumes
 type family Width t where
   Width (a :| b) = Width a + Width b
@@ -75,22 +75,21 @@ class HFoldable (t :: Type) x where
   hFoldMap :: Semigroup m => (x -> m) -> t -> m
   hFoldl :: (b -> x -> b) -> b -> t -> b
 
-newtype Fold x = Fold { getFold :: x }
- deriving Semigroup
+-- Basic fold instance
+instance {-# Overlappable #-} HFoldVal t x => HFoldable t x where
+  hFoldl f b x = f b (hFoldVal x)
+  hFoldr f b x = f (hFoldVal x) b
+  hFoldMap f x = f (hFoldVal x)
 
--- Basic fold instance. Wrapped in Fold to keep instances decideable
-instance HFoldVal t x => HFoldable (Fold t) x where
-  hFoldl f b (Fold x) = f b (hFoldVal x)
-  hFoldr f b (Fold x) = f (hFoldVal x) b
-  hFoldMap f (Fold x) = trace "is here" $ f (hFoldVal x)
+-- Induction over :|
+instance {-# Overlapping #-} (HFoldVal t x, HFoldable ts x) => HFoldable (t :| ts) x where
+  hFoldl f b (x :| xs) = hFoldl f (hFoldl f b x) xs
+  hFoldr f b (x :| xs) = hFoldr f (hFoldr f b  x) xs
+  hFoldMap f (x :| xs) = hFoldMap f x <> hFoldMap f xs
 
-instance (HFoldable (Fold t) x, HFoldable (Fold ts) x) => HFoldable (t :| ts) x where
-  hFoldl f b (x :| xs) = hFoldl f (hFoldl f b (Fold x)) (Fold xs)
-  hFoldr f b (x :| xs) = hFoldr f (hFoldr f b (Fold x)) (Fold xs)
-  hFoldMap f (x :| xs) = hFoldMap f (Fold x) <> hFoldMap f (Fold xs)
-
+-- For C.Record instances
 instance HFoldVal (FieldMapping s r f w) (Reader r (V.Vector C.Field)) where
-  hFoldVal fm = trace "Now here" $ case fm of
+  hFoldVal fm = case fm of
     Field _ codec -> asks $ V.singleton . C.toField . encoder codec . getF codec
     Splice codec -> asks $ C.toRecord . encoder codec . getF codec
 
@@ -134,7 +133,6 @@ instance PickMatch t1 t2 'True where
 instance PickMatch t1 t2 'False where
   type Picked t1 t2 'False = t2
   picked (_ :| t2) = t2
-
 
 -- Class for terms which can be reduced to a simpler type
 -- The goal is to reduce to FieldMapping
@@ -184,9 +182,6 @@ instance (Reduce t s r f w, idx~Index t s, KnownNat idx) => GParseRecord (M1 S (
             Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
               where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm record
 
-bsVectorString :: [B.ByteString] -> String
-bsVectorString = BC.unpack . BC.intercalate ","
-                           
 instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where
   gParseRecord p t mapping = do
     a <- gParseRecord p t mapping

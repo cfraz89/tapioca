@@ -16,26 +16,22 @@ module Data.Tapioca.Internal.Encode
   , header
   ) where
 
-import Data.Tapioca.Internal.Types.Codec
 import Data.Tapioca.Internal.Types.Mapping
 
 import Control.Monad.Reader
-import qualified Data.ByteString as B
 import qualified Data.Csv as C
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
-import Debug.Trace
 
 -- | Return a vector of all headers specified by our csv map in order. Nested maps will have their headers spliced inline.
 -- | Similar to cassava's headerOrder function
 header :: forall r. CsvMapped r => C.Header
 header = fromCsvMap (csvMap @r)
-  where fromCsvMap (CsvMap (m :: t)) = hFoldMap @_ @C.Header id (Fold m)
+  where fromCsvMap (CsvMap (m :: t)) = hFoldMap @_ @C.Header id  m
     
 -- | Tapioca equivalent of cassava's toRecord
 toRecord :: forall r. CsvMapped r => r -> C.Record
 toRecord record = foldCsvMap (csvMap @r)
-  where foldCsvMap (CsvMap (m :: t)) = hFoldMap @_ @(Reader r (V.Vector C.Field)) (`runReader` record) (Fold m)
+  where foldCsvMap (CsvMap (m :: t)) = hFoldMap @_ @(Reader r (V.Vector C.Field)) (`runReader` record) m
 
 -- | Tapioca equivalent of cassava's toNamedRecord
 toNamedRecord :: CsvMapped r => r -> C.NamedRecord

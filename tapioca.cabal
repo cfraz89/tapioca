@@ -25,6 +25,7 @@ library
         Data.Tapioca.Internal.Encode,
         Data.Tapioca.Internal.Types.Codec,
         Data.Tapioca.Internal.Types.Mapping,
+        Data.Tapioca.Internal.Types.ParseWithCsvMap,
         Data.Tapioca.Internal.ByCsvMap
     hs-source-dirs: src
     default-language: Haskell2010

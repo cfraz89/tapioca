@@ -8,7 +8,7 @@ module Data.Tapioca.Internal.ByCsvMap where
 
 import Data.Tapioca.Internal.Encode
 import Data.Tapioca.Internal.Types.Mapping
-import Data.Tapioca.Internal.Common (parseWithCsvMap)
+import Data.Tapioca.Internal.Types.ParseWithCsvMap (parseWithCsvMap)
 
 import qualified Data.Csv as C
 
