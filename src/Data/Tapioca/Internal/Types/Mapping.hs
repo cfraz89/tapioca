@@ -25,7 +25,6 @@ import Data.Tapioca.Internal.Common (bsVectorString)
 import GHC.Exts
 import GHC.Generics
 import GHC.OverloadedLabels
-import GHC.Records
 import GHC.TypeLits
 
 import Control.Monad.Reader
@@ -36,6 +35,22 @@ import qualified Data.HashMap.Strict as HM
 import Data.Kind
 import Data.Type.Bool
 import qualified Data.Vector as V
+
+-- Encoding
+-- | Return a vector of all headers specified by our csv map in order. Nested maps will have their headers spliced inline.
+-- | Similar to cassava's headerOrder function
+header :: forall r. CsvMapped r => C.Header
+header = fromCsvMap (csvMap @r)
+  where fromCsvMap (CsvMap (m :: t)) = hFoldMap @t @C.Header id  m
+    
+-- | Tapioca equivalent of cassava's toRecord
+toRecord :: forall r. CsvMapped r => r -> C.Record
+toRecord record = foldCsvMap (csvMap @r)
+  where foldCsvMap (CsvMap (m :: t)) = hFoldMap @t @(Reader r (V.Vector C.Field)) (`runReader` record) m
+
+-- | Tapioca equivalent of cassava's toNamedRecord
+toNamedRecord :: CsvMapped r => r -> C.NamedRecord
+toNamedRecord = undefined
 
 type GenericCsvDecode r t i = (GParseRecord (Rep r) r t i, Generic r)
 
@@ -59,14 +74,15 @@ class CsvMapped r where
 
 data FieldMapping (s :: Symbol) r f (w :: Nat) where
   Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f 1
-  Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e, C.ToRecord e, HFoldVal (CsvMap e) C.Header) =>  Codec s r f d e -> FieldMapping s r f (Width d)
+  Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e) =>  Codec s r f d e -> FieldMapping s r f 1
 
 -- Tracking of how many columns a type consumes
-type family Width t where
+type family Width t :: Nat where
   Width (a :| b) = Width a + Width b
   Width (CsvMap m) = Width m
   Width (FieldMapping _ _ _ w) = w
 
+-- Heterogeneous folding required for encoding
 class HFoldVal (t :: Type) x where
   hFoldVal :: t -> x
 
@@ -82,28 +98,21 @@ instance {-# Overlappable #-} HFoldVal t x => HFoldable t x where
   hFoldMap f x = f (hFoldVal x)
 
 -- Induction over :|
-instance {-# Overlapping #-} (HFoldVal t x, HFoldable ts x) => HFoldable (t :| ts) x where
+instance {-# Overlapping #-} (HFoldable t x, HFoldable ts x) => HFoldable (t :| ts) x where
   hFoldl f b (x :| xs) = hFoldl f (hFoldl f b x) xs
   hFoldr f b (x :| xs) = hFoldr f (hFoldr f b  x) xs
   hFoldMap f (x :| xs) = hFoldMap f x <> hFoldMap f xs
 
--- For C.Record instances
+-- SUpport for encoding
 instance HFoldVal (FieldMapping s r f w) (Reader r (V.Vector C.Field)) where
   hFoldVal fm = case fm of
     Field _ codec -> asks $ V.singleton . C.toField . encoder codec . getF codec
-    Splice codec -> asks $ C.toRecord . encoder codec . getF codec
-
+    Splice codec -> asks $ toRecord . encoder codec . getF codec
+  
 instance HFoldVal (FieldMapping s r f w) C.Header where
   hFoldVal (Field name _) = pure name
-  hFoldVal (Splice (_ :: Codec s r f d e)) = hFoldVal (csvMap @e)
-
-instance (HasField x r f, r~f, f ~ d, f ~ e, CsvMapped f, Generic f, w ~ Width f, C.ToRecord e, HFoldVal (CsvMap e) C.Header) => IsLabel x (FieldMapping x r f w) where
-  fromLabel = Splice (Codec id id id)
-
-data SelectorProxy (s :: Symbol) = SelectorProxy
-
-instance (s~s') => IsLabel s (SelectorProxy s') where
-  fromLabel = SelectorProxy
+  hFoldVal (Splice (_ :: Codec s r f d e)) = hFoldOf (csvMap @e)
+    where hFoldOf (CsvMap (m :: t)) = hFoldMap @_ @C.Header id m
 
 -- Type family to determine whether an arbitrary selector matches that of our mapping
 type family Match t s :: Bool where
@@ -113,7 +122,7 @@ type family Match t s :: Bool where
 -- Finds the correct index within a record of a mapping
 type family Index (t :: Type) (s :: Symbol) :: Nat where
   Index (FieldMapping _ _ _ _) s  = 0
-  Index (t1 :| t2) s = If (Match t1 s) 0 (Width t1)
+  Index (t1 :| t2) s = 1
 
 type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'LT = 'False
@@ -122,6 +131,7 @@ type family OrdBool (o :: Ordering) :: Bool where
 
 type EqSymbol s s' = OrdBool (CmpSymbol s s')
 
+-- Return t1 if provided with true, otherwise t2
 class PickMatch (t1 :: Type) (t2 :: Type) (b :: Bool) where
   type Picked t1 t2 b
   picked :: t1 :| t2 -> Picked t1 t2 b

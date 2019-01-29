@@ -60,6 +60,7 @@ import Data.Tapioca.Internal.Common
 import Data.Tapioca.Internal.Encode
 import Data.Tapioca.Internal.Types.Mapping
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
+import Data.Tapioca.Internal.Types.Codec (Codec(..))
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
@@ -132,8 +133,12 @@ parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case in
     DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
     DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
 
-data Dummy = Dummy { dt :: Int, dt2 :: String} deriving (Generic, Show)
+data Dummy = Dummy { sd :: SpliceDummy, dt :: Int, dt2 :: String} deriving (Generic, Show)
+
 data SpliceDummy = SpliceDummy { sd1 :: String, sd2 :: Int} deriving (Generic, Show)
 
+instance CsvMapped SpliceDummy where
+  csvMap = CsvMap $ "sd1" <-> #sd1 :| "sd2" <-> #sd2
+
 instance CsvMapped Dummy where
-  csvMap = CsvMap $ "Column 1" <-> #dt :| "Column 2" <-> #dt2
+  csvMap = CsvMap $ Splice #sd :|  "Column 1" <-> #dt :| "Column 2" <-> #dt2
