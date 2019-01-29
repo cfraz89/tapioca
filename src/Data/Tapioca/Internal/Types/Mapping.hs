@@ -24,7 +24,6 @@ import Data.Tapioca.Internal.Common (bsVectorString)
 
 import GHC.Exts
 import GHC.Generics
-import GHC.OverloadedLabels
 import GHC.TypeLits
 
 import Control.Monad.Reader
@@ -41,12 +40,12 @@ import qualified Data.Vector as V
 -- | Similar to cassava's headerOrder function
 header :: forall r. CsvMapped r => C.Header
 header = fromCsvMap (csvMap @r)
-  where fromCsvMap (CsvMap (m :: t)) = hFoldMap @t @C.Header id  m
-    
+  where fromCsvMap (CsvMap mapping) = hFoldMap @_ @C.Header id mapping
+
 -- | Tapioca equivalent of cassava's toRecord
 toRecord :: forall r. CsvMapped r => r -> C.Record
 toRecord record = foldCsvMap (csvMap @r)
-  where foldCsvMap (CsvMap (m :: t)) = hFoldMap @t @(Reader r (V.Vector C.Field)) (`runReader` record) m
+  where foldCsvMap (CsvMap mapping) = hFoldMap @_ @(Reader r (V.Vector C.Field)) (`runReader` record) mapping
 
 -- | Tapioca equivalent of cassava's toNamedRecord
 toNamedRecord :: CsvMapped r => r -> C.NamedRecord
@@ -72,17 +71,23 @@ class CsvMapped r where
   (<->) :: forall s f d e. (C.FromField f, C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f 1
   name <-> codec  = Field name codec
 
+-- | The 'link' in a mapping chain.
 data FieldMapping (s :: Symbol) r f (w :: Nat) where
   Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f 1
-  Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e) =>  Codec s r f d e -> FieldMapping s r f 1
+  Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e) => Codec s r f d e -> FieldMapping s r f (Width e)
 
--- Tracking of how many columns a type consumes
+-- | Tracking of how many columns a type consumes
 type family Width t :: Nat where
   Width (a :| b) = Width a + Width b
   Width (CsvMap m) = Width m
   Width (FieldMapping _ _ _ w) = w
 
--- Heterogeneous folding required for encoding
+-- | Finds the correct index within a record of a mapping, based on width of preceding columns
+type family Index (t :: Type) (s :: Symbol) :: Nat where
+  Index (FieldMapping _ _ _ _) s  = 0
+  Index (t1 :| t2) s = If (Match t1 s) 0 (Width t1 + Index t2 s)
+
+-- | Heterogeneous folding required for encoding
 class HFoldVal (t :: Type) x where
   hFoldVal :: t -> x
 
@@ -91,38 +96,34 @@ class HFoldable (t :: Type) x where
   hFoldMap :: Semigroup m => (x -> m) -> t -> m
   hFoldl :: (b -> x -> b) -> b -> t -> b
 
--- Basic fold instance
+-- | Basic fold instance
 instance {-# Overlappable #-} HFoldVal t x => HFoldable t x where
   hFoldl f b x = f b (hFoldVal x)
   hFoldr f b x = f (hFoldVal x) b
   hFoldMap f x = f (hFoldVal x)
 
--- Induction over :|
+-- | Induction over :|
 instance {-# Overlapping #-} (HFoldable t x, HFoldable ts x) => HFoldable (t :| ts) x where
   hFoldl f b (x :| xs) = hFoldl f (hFoldl f b x) xs
   hFoldr f b (x :| xs) = hFoldr f (hFoldr f b  x) xs
   hFoldMap f (x :| xs) = hFoldMap f x <> hFoldMap f xs
 
--- SUpport for encoding
+-- | Support for encoding
 instance HFoldVal (FieldMapping s r f w) (Reader r (V.Vector C.Field)) where
   hFoldVal fm = case fm of
     Field _ codec -> asks $ V.singleton . C.toField . encoder codec . getF codec
     Splice codec -> asks $ toRecord . encoder codec . getF codec
-  
+
+-- | Generate a header entry for this mapping
 instance HFoldVal (FieldMapping s r f w) C.Header where
   hFoldVal (Field name _) = pure name
   hFoldVal (Splice (_ :: Codec s r f d e)) = hFoldOf (csvMap @e)
     where hFoldOf (CsvMap (m :: t)) = hFoldMap @_ @C.Header id m
 
--- Type family to determine whether an arbitrary selector matches that of our mapping
+-- | Type family to determine whether an arbitrary selector matches that of our mapping
 type family Match t s :: Bool where
   Match (FieldMapping s _ _ _) s' = EqSymbol s s'
   Match (t1 :| t2) s = Match t1 s || Match t2 s
-
--- Finds the correct index within a record of a mapping
-type family Index (t :: Type) (s :: Symbol) :: Nat where
-  Index (FieldMapping _ _ _ _) s  = 0
-  Index (t1 :| t2) s = 1
 
 type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'LT = 'False
@@ -144,19 +145,20 @@ instance PickMatch t1 t2 'False where
   type Picked t1 t2 'False = t2
   picked (_ :| t2) = t2
 
--- Class for terms which can be reduced to a simpler type
+-- | Class for terms which can be reduced to a simpler type
 -- The goal is to reduce to FieldMapping
 class Reduce t (s :: Symbol) r f (w :: Nat) where
   selectorMapping :: t -> FieldMapping s r f w
 
--- Base case
+-- | Base case
 instance (r~r', f~f', w~w') => Reduce (FieldMapping s r f w) s r' f' w' where
   selectorMapping = id
 
--- Inductive case
+-- | Inductive case
 instance (Reduce tt s r f w, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f w where
  selectorMapping t = selectorMapping (picked @_ @_ @m t)
 
+-- | Generic creation of record from CsvMap
 -- f :: Generic representation
 -- r :: record type we are parsing to
 -- t :: Our CsvMap unwrapped type
