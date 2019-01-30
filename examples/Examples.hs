@@ -20,14 +20,14 @@ data ExampleRecord = ExampleRecord
   , field3 :: Maybe Int
   }
   deriving (Show, Generic)
- -- deriving C.FromNamedRecord via ByCsvMap ExampleRecord
+  deriving C.FromNamedRecord via ByCsvMap ExampleRecord
 
 data SplicingRecord = SplicingRecord
   { exampleRecord :: ExampleRecord
   , other :: Int
   }
   deriving (Show, Generic)
-  --deriving C.FromNamedRecord via ByCsvMap SplicingRecord
+  deriving C.FromNamedRecord via ByCsvMap SplicingRecord
 
 instance CsvMapped ExampleRecord where
  csvMap = CsvMap
@@ -98,6 +98,6 @@ main = do
   putStrLn mempty
 
   ----------- Cassava compatibility: FromNamedRecord
-  --putStrLn "Decode Example Spliced CSV with Cassava decodeByName ------------"
-  --print $ C.decodeByName @SplicingRecord exampleSplicedCsv
-  --putStrLn mempty
+  putStrLn "Decode Example Spliced CSV with Cassava decodeByName ------------"
+  print $ C.decodeByName @SplicingRecord exampleSplicedCsv
+  putStrLn mempty
