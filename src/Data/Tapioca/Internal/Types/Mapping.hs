@@ -14,7 +14,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
@@ -59,6 +58,7 @@ data CsvMap r = forall m.
   , GenericCsvDecode r m C.Record
   , HFoldable m (Reader r (V.Vector C.Field)) -- For encode ToRecord
   , HFoldable m C.Header -- To List headers
+  , Width m
   ) => CsvMap m
 
 -- Our joining/induction type for records
@@ -75,7 +75,7 @@ class CsvMapped r where
 -- | The 'link' in a mapping chain.
 data FieldMapping (s :: Symbol) r f where
   Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f
-  Splice :: forall s r f d e w. (CsvMapped d, Generic d, CsvMapped e) => Codec s r f d e -> FieldMapping s r f
+  Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e) => Codec s r f d e -> FieldMapping s r f
 
 -- | Heterogeneous folding required for encoding
 class HFoldVal (t :: Type) x where
@@ -148,7 +148,46 @@ instance (r~r', f~f') => Reduce (FieldMapping s r f) s r' f' where
 instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f where
  selectorMapping t = selectorMapping (picked @_ @_ @m t)
 
+-- | Determine how many columns a mapping consumes
+-- Splices may take > 1
+class Width t where
+  width :: t -> Int
 
+instance Width (FieldMapping s r f) where
+  width (Field _ _) = 1
+  width (Splice (_ :: Codec _ _ _ d _)) = widthOf (csvMap @d)
+    where widthOf (CsvMap mapping) = width mapping
+
+instance (Width t1, Width t2) => Width (t1 :| t2) where
+  width (t1 :| t2) = width t1 + width t2
+
+-- | Class for looking up position of selector in our type
+-- Takes into consideration splices inserted before position
+class Index t (s :: Symbol) where
+  index :: t -> Int
+
+instance Index (FieldMapping s r f) s where
+  index _ = 0
+  
+-- | Class to decide on wether to progress to next segment based on selector matching of first
+class PickNext (t1 :: Type) (t2 :: Type) (m :: Bool) where
+  type Next t1 t2 m :: Type
+  incr :: t1 -> Int
+  next :: t1 -> t2 -> Next t1 t2 m
+
+instance PickNext t1 t2 'True where
+  type Next t1 t2 'True = t1
+  incr _ = 0
+  next t1 _ = t1 
+
+instance Width t1 => PickNext t1 t2 'False where
+  type Next t1 t2 'False = t2
+  incr = width
+  next _ t2 = t2
+  
+instance (m ~ Match t1 s, PickNext t1 t2 m, Index (Next t1 t2 m) s) => Index (t1 :| t2) s where
+  index (t1 :| t2) = incr @_ @t2 @m t1 + index @_ @s (next @_ @_ @m t1 t2)
+  
 -- | Generic creation of record from CsvMap
 -- f :: Generic representation
 -- r :: record type we are parsing to
@@ -174,14 +213,14 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
             Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
               where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm namedRecord
 
-instance (Reduce t s r f) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
+instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
             Field _ fm -> maybe (fail errMsg) decode val
-              where errMsg = "Can't parse item at index " <> show idx <> " in row: " <> bsVectorString (V.toList record)
+              where errMsg = "Can't parse item at index " <> show (index @_ @s fieldMapping) <> " in row: " <> bsVectorString (V.toList record)
                     decode = (decoder fm <$>) . C.parseField
-                    --idx = index 
-                    val = record V.!? fromIntegral idx
+                    --idx = index
+                    val = record V.!? index @_ @s fieldMapping
             Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
               where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm record
 
