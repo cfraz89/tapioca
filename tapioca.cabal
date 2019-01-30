@@ -22,7 +22,6 @@ library
         Data.Tapioca
     other-modules:
         Data.Tapioca.Internal.Common,
-        Data.Tapioca.Internal.Encode,
         Data.Tapioca.Internal.Types.Codec,
         Data.Tapioca.Internal.Types.Mapping,
         Data.Tapioca.Internal.Types.ParseWithCsvMap,
@@ -39,5 +38,5 @@ library
         unordered-containers >= 0.2.9 && < 0.3,
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
-        profunctors          >= 5.3 && < 5.4,
-        mtl
+        mtl,
+        invertible,

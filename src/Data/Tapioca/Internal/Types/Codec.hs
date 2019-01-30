@@ -7,34 +7,29 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE InstanceSigs #-}
 
-module Data.Tapioca.Internal.Types.Codec(Codec(..), encode) where
+module Data.Tapioca.Internal.Types.Codec(Codec(..), codec) where
 
 import GHC.OverloadedLabels
 import GHC.Records
-
-import Data.Profunctor
 import GHC.TypeLits
+
+import qualified Data.Invertible as Inv
+import Data.Invertible.Bijection
 
 -- Initially expose our field type so that it can be mapped over
 -- r - Record type
 -- f - field type with record
--- d - Type to decode as
--- e - type to encode as
-data Codec (s :: Symbol) r f d e = Codec
-  { getF :: r -> f
-  , encoder :: f -> e
-  , decoder :: d -> f
+-- c - mapping to apply
+data Codec (s :: Symbol) r f c = Codec
+  { _getCodecField :: r -> f
+  , _codec :: f <-> c
   }
 
-encode :: f -> Codec s r f d e -> e
-encode r codec = encoder codec r  
+codec :: (f <-> c') -> Codec s r f c -> Codec s r f c'
+codec newCoder (Codec gcf _) = Codec gcf newCoder 
 
-instance Profunctor (Codec s r f) where
-  dimap d e fm = fm
-    { encoder = e . encoder fm
-    , decoder = decoder fm . d
-    }
-
-instance (f~d, f~e, HasField x r f, x~x', r~r', f~f') => IsLabel x (Codec x' r' f' d e) where
-  fromLabel = Codec (getField @x) id id
+instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Codec x' r' f' c) where
+  fromLabel = Codec (getField @x) Inv.id

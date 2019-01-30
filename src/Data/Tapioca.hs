@@ -50,6 +50,7 @@ module Data.Tapioca
   , encode
   , decode
   , header
+  , codec
   , C.HasHeader(..)
   ) where
 
@@ -57,10 +58,9 @@ import GHC.Generics
 
 import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Common
-import Data.Tapioca.Internal.Encode
+import Data.Tapioca.Internal.Types.Codec
 import Data.Tapioca.Internal.Types.Mapping
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
-import Data.Tapioca.Internal.Types.Codec (Codec(..))
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB

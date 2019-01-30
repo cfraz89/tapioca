@@ -26,6 +26,7 @@ import GHC.Exts
 import GHC.Generics
 import GHC.TypeLits
 
+import Control.Invertible.Monoidal
 import Control.Monad.Reader
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
@@ -69,13 +70,13 @@ data a :| b = a :| b
 class CsvMapped r where
   csvMap :: CsvMap r
 
-  (<->) :: forall s f d e. (C.FromField f, C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f
-  name <-> codec  = Field name codec
+  (<->) :: forall s f c. (C.FromField c, C.ToField c) => B.ByteString -> Codec s r f c -> FieldMapping s r f
+  name <-> cdc  = Field name cdc
 
 -- | The 'link' in a mapping chain.
 data FieldMapping (s :: Symbol) r f where
-  Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f
-  Splice :: forall s r f d e. (CsvMapped d, Generic d, CsvMapped e) => Codec s r f d e -> FieldMapping s r f
+  Field :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Codec s r f c -> FieldMapping s r f
+  Splice :: forall s r f c. (CsvMapped c, Generic c) => Codec s r f c -> FieldMapping s r f
 
 -- | Heterogeneous folding required for encoding
 class HFoldVal (t :: Type) x where
@@ -101,13 +102,13 @@ instance {-# Overlapping #-} (HFoldable t x, HFoldable ts x) => HFoldable (t :| 
 -- | Support for encoding
 instance HFoldVal (FieldMapping s r f) (Reader r (V.Vector C.Field)) where
   hFoldVal fm = case fm of
-    Field _ codec -> asks $ V.singleton . C.toField . encoder codec . getF codec
-    Splice codec -> asks $ toRecord . encoder codec . getF codec
+    Field _ cdc -> asks $ V.singleton . C.toField . biTo (_codec cdc) . _getCodecField cdc
+    Splice cdc -> asks $ toRecord . biTo (_codec cdc) . _getCodecField cdc
 
 -- | Generate a header entry for this mapping
 instance HFoldVal (FieldMapping s r f) C.Header where
   hFoldVal (Field name _) = pure name
-  hFoldVal (Splice (_ :: Codec s r f d e)) = hFoldOf (csvMap @e)
+  hFoldVal (Splice (_ :: Codec s r f c)) = hFoldOf (csvMap @c)
     where hFoldOf (CsvMap (m :: t)) = hFoldMap @_ @C.Header id m
 
 -- | Type family to determine whether an arbitrary selector matches that of our mapping
@@ -155,7 +156,7 @@ class Width t where
 
 instance Width (FieldMapping s r f) where
   width (Field _ _) = 1
-  width (Splice (_ :: Codec _ _ _ d _)) = widthOf (csvMap @d)
+  width (Splice (_ :: Codec _ _ _ c)) = widthOf (csvMap @c)
     where widthOf (CsvMap mapping) = width mapping
 
 instance (Width t1, Width t2) => Width (t1 :| t2) where
@@ -206,23 +207,23 @@ instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
 instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
-            Field name fm -> maybe (fail errMsg) decode val
+            Field name cdc -> maybe (fail errMsg) decode val
               where errMsg = "No column " <> BC.unpack name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
                     val = HM.lookup name namedRecord
-                    decode = (decoder fm <$>) . C.parseField
-            Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
-              where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm namedRecord
+                    decode = (biFrom (_codec cdc) <$>) . C.parseField
+            Splice (cdc :: Codec s r _ c) -> parseSplice (csvMap @c)
+              where parseSplice (CsvMap cm) = biFrom (_codec cdc) . to <$> gParseRecord @_ @c proxy# cm namedRecord
 
 instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
-            Field _ fm -> maybe (fail errMsg) decode val
+            Field _ cdc -> maybe (fail errMsg) decode val
               where errMsg = "Can't parse item at index " <> show (index @_ @s fieldMapping) <> " in row: " <> bsVectorString (V.toList record)
-                    decode = (decoder fm <$>) . C.parseField
+                    decode = (biFrom (_codec cdc) <$>) . C.parseField
                     --idx = index
                     val = record V.!? index @_ @s fieldMapping
-            Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
-              where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm record
+            Splice (cdc :: Codec s r _ c) -> parseSplice (csvMap @c)
+              where parseSplice (CsvMap cm) = biFrom (_codec cdc) . to <$> gParseRecord @_ @c proxy# cm record
 
 instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where
   gParseRecord p t mapping = do

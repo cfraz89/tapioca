@@ -15,5 +15,5 @@ executable examples
         tapioca,
         bytestring,
         vector,
-        profunctors,
+        invertible,
         cassava
