@@ -38,5 +38,5 @@ library
         unordered-containers >= 0.2.9 && < 0.3,
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
-        mtl,
-        invertible,
+        mtl                  >= 2.2.2 && < 2.3,
+        invertible           >= 0.2.0 && < 0.3,
