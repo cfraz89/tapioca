@@ -69,37 +69,13 @@ data a :| b = a :| b
 class CsvMapped r where
   csvMap :: CsvMap r
 
-  (<->) :: forall s f d e. (C.FromField f, C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f ('S 'Z)
+  (<->) :: forall s f d e. (C.FromField f, C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f
   name <-> codec  = Field name codec
 
 -- | The 'link' in a mapping chain.
-data FieldMapping (s :: Symbol) r f (w :: PNat) where
-  Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f ('S 'Z)
-  Splice :: forall s r f d e w. (CsvMapped d, Generic d, CsvMapped e, Width e w) => Codec s r f d e -> FieldMapping s r f w
-
--- | Since Typelites breaks down resolving KnownNat against type families it seems
-data PNat = Z | S PNat
-type family Add (a :: PNat) (b :: PNat) :: PNat where
-  Add a 'Z = a
-  Add a ('S _) = 'S a
-
-class PNatVal (p :: PNat) where
-  pNatVal :: Int
-
-instance PNatVal 'Z where pNatVal = 0
-instance PNatVal i => PNatVal ('S i) where pNatVal = 1 + pNatVal @i
-
--- | Tracking of how many columns a type consumes
-class PNatVal w => Width (t :: Type) (w :: PNat) | t -> w
-instance (PNatVal w, Width a wa, Width b wb, w ~ Add wa wb) => Width (a :| b) w
-instance (Width m w) => Width (CsvMap m) w
-instance {-# Overlapping #-} PNatVal w => Width (FieldMapping s r f w) w
-instance {-# Overlappable #-} (Width m w, CsvMapped m, PNatVal w) => Width m w
-
--- | Finds the correct index within a record of a mapping, based on width of preceding columns
-class Index (t :: Type) (s :: Symbol) (i :: PNat) | t s -> i
-instance Index (FieldMapping s r f w) s' 'Z
-instance (Width t1 w1, Index t2 s i2, w ~ If (Match t1 s) 'Z (Add w1 i2)) => Index (t1 :| t2) s w
+data FieldMapping (s :: Symbol) r f where
+  Field :: forall s r f d e. (C.FromField d, C.ToField e) => B.ByteString -> Codec s r f d e -> FieldMapping s r f
+  Splice :: forall s r f d e w. (CsvMapped d, Generic d, CsvMapped e) => Codec s r f d e -> FieldMapping s r f
 
 -- | Heterogeneous folding required for encoding
 class HFoldVal (t :: Type) x where
@@ -123,20 +99,20 @@ instance {-# Overlapping #-} (HFoldable t x, HFoldable ts x) => HFoldable (t :| 
   hFoldMap f (x :| xs) = hFoldMap f x <> hFoldMap f xs
 
 -- | Support for encoding
-instance HFoldVal (FieldMapping s r f w) (Reader r (V.Vector C.Field)) where
+instance HFoldVal (FieldMapping s r f) (Reader r (V.Vector C.Field)) where
   hFoldVal fm = case fm of
     Field _ codec -> asks $ V.singleton . C.toField . encoder codec . getF codec
     Splice codec -> asks $ toRecord . encoder codec . getF codec
 
 -- | Generate a header entry for this mapping
-instance HFoldVal (FieldMapping s r f w) C.Header where
+instance HFoldVal (FieldMapping s r f) C.Header where
   hFoldVal (Field name _) = pure name
   hFoldVal (Splice (_ :: Codec s r f d e)) = hFoldOf (csvMap @e)
     where hFoldOf (CsvMap (m :: t)) = hFoldMap @_ @C.Header id m
 
 -- | Type family to determine whether an arbitrary selector matches that of our mapping
 type family Match t s :: Bool where
-  Match (FieldMapping s _ _ _) s' = EqSymbol s s'
+  Match (FieldMapping s _ _) s' = EqSymbol s s'
   Match (t1 :| t2) s = Match t1 s || Match t2 s
 
 type family OrdBool (o :: Ordering) :: Bool where
@@ -161,16 +137,17 @@ instance PickMatch t1 t2 'False where
 
 -- | Class for terms which can be reduced to a simpler type
 -- The goal is to reduce to FieldMapping
-class Reduce t (s :: Symbol) r f (w :: PNat) where
-  selectorMapping :: t -> FieldMapping s r f w
+class Reduce t (s :: Symbol) r f where
+  selectorMapping :: t -> FieldMapping s r f
 
 -- | Base case
-instance (r~r', f~f', w~w') => Reduce (FieldMapping s r f w) s r' f' w' where
+instance (r~r', f~f') => Reduce (FieldMapping s r f) s r' f' where
   selectorMapping = id
 
 -- | Inductive case
-instance (Reduce tt s r f w, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f w where
+instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f where
  selectorMapping t = selectorMapping (picked @_ @_ @m t)
+
 
 -- | Generic creation of record from CsvMap
 -- f :: Generic representation
@@ -187,9 +164,9 @@ instance GParseRecord f r t i => GParseRecord (M1 D x f) r t i where
 instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
   gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
-instance Reduce t s r f w => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
+instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
-    where parseByType = case selectorMapping @_ @s @r @f @w fieldMapping of
+    where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
             Field name fm -> maybe (fail errMsg) decode val
               where errMsg = "No column " <> BC.unpack name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
                     val = HM.lookup name namedRecord
@@ -197,13 +174,13 @@ instance Reduce t s r f w => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K
             Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
               where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm namedRecord
 
-instance (Reduce t s r f w, Index t s idx, PNatVal idx) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
+instance (Reduce t s r f) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
-    where parseByType = case selectorMapping @_ @s @r @f @w fieldMapping of
+    where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
             Field _ fm -> maybe (fail errMsg) decode val
               where errMsg = "Can't parse item at index " <> show idx <> " in row: " <> bsVectorString (V.toList record)
                     decode = (decoder fm <$>) . C.parseField
-                    idx = pNatVal @idx
+                    --idx = index 
                     val = record V.!? fromIntegral idx
             Splice (fm :: Codec s r _ d _) -> parseSplice (csvMap @d)
               where parseSplice (CsvMap cm) = decoder fm . to <$> gParseRecord @_ @d proxy# cm record
