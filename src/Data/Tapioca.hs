@@ -51,16 +51,20 @@ module Data.Tapioca
   , decode
   , header
   , codec
+  , toRecord
+  , toNamedRecord
   , C.HasHeader(..)
   ) where
 
 import GHC.Generics
 
 import Data.Tapioca.Internal.ByCsvMap
+import Data.Tapioca.Internal.Types.ColSep
+import Data.Tapioca.Internal.Types.CsvMap
 import Data.Tapioca.Internal.Common
 import Data.Tapioca.Internal.Types.Codec
-import Data.Tapioca.Internal.Types.Mapping
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
+import Data.Tapioca.Internal.Types.ParseRecord()
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
@@ -83,31 +87,25 @@ import qualified Data.Vector as V
 -- $example-class
 -- @
 -- instance 'CsvMapped' TestItem where
---  'csvMap' = 'mkCsvMap'
---    [ "Field 1" ':=' #field1
---    , #field2
---    , "Field 3" ':=' #field3
---    ]
---
--- instance 'CsvMapped' SomeItem where ...
+--  'csvMap' = 'CsvMap'
+--    $ "Field 1" '<->' #field1
+-- ':|' 'Splice' #field2
+-- ':|' "Field 3" '<->' #field3
 -- @
 
 -- $example-coding
 -- To encode to csv:
 --
 -- @
--- 'encode' 'WithHeader' testItems
+-- 'encode' 'Data.Csv.HasHeader' testItems
 -- @
 --
 -- To decode from csv:
 --
 -- @
--- 'decode' @TestItem 'WithHeader' csvByteString
+-- 'decode' @TestItem 'DecodeNamed' csvByteString
 -- @
 
--- | Construct a CsvMap from a list of mappings
---mkCsvMap :: fm -> CsvMap r fm
---mkCsvMap = CsvMap
 
 -- | Encode a list of items using our mapping
 encode :: forall r. CsvMapped r => C.HasHeader -> [r] -> BL.ByteString
@@ -132,6 +130,7 @@ parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case in
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
     DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
     DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
+
 
 data Dummy = Dummy { sd :: SpliceDummy, dt :: Int, dt2 :: String} deriving (Generic, Show)
 

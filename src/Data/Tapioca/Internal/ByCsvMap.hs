@@ -6,7 +6,7 @@
 
 module Data.Tapioca.Internal.ByCsvMap where
 
-import Data.Tapioca.Internal.Types.Mapping
+import Data.Tapioca.Internal.Types.CsvMap
 import Data.Tapioca.Internal.Types.ParseWithCsvMap (parseWithCsvMap)
 
 import GHC.Generics
@@ -30,4 +30,3 @@ instance CsvMapped r => C.FromRecord (ByCsvMap r) where
 
 instance (CsvMapped r, Generic r) => C.FromNamedRecord (ByCsvMap r) where
   parseNamedRecord = (ByCsvMap <$>) . parseWithCsvMap
-

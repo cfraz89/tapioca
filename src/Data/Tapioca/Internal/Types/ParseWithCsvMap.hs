@@ -10,7 +10,8 @@
 
 module Data.Tapioca.Internal.Types.ParseWithCsvMap where
 
-import Data.Tapioca.Internal.Types.Mapping
+import Data.Tapioca.Internal.Types.CsvMap
+import Data.Tapioca.Internal.Types.GParseRecord
 
 import GHC.Exts
 import GHC.Generics

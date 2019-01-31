@@ -18,14 +18,18 @@ source-repository head
   location: https://github.com/cfraz89/tapioca.git
 
 library
-    exposed-modules:
-        Data.Tapioca
-    other-modules:
-        Data.Tapioca.Internal.Common,
-        Data.Tapioca.Internal.Types.Codec,
-        Data.Tapioca.Internal.Types.Mapping,
-        Data.Tapioca.Internal.Types.ParseWithCsvMap,
-        Data.Tapioca.Internal.ByCsvMap
+    exposed-modules: Data.Tapioca
+    other-modules: Data.Tapioca.Internal.Common,
+                   Data.Tapioca.Internal.Types.Codec,
+                   Data.Tapioca.Internal.Types.ColSep,
+                   Data.Tapioca.Internal.Types.CsvMap,
+                   Data.Tapioca.Internal.Types.GParseRecord,
+                   Data.Tapioca.Internal.Types.HFoldable,
+                   Data.Tapioca.Internal.Types.Index,
+                   Data.Tapioca.Internal.Types.Match,
+                   Data.Tapioca.Internal.Types.ParseRecord,
+                   Data.Tapioca.Internal.Types.ParseWithCsvMap,
+                   Data.Tapioca.Internal.ByCsvMap
     hs-source-dirs: src
     default-language: Haskell2010
     ghc-options: -Wall -fprint-potential-instances
@@ -38,5 +42,4 @@ library
         unordered-containers >= 0.2.9 && < 0.3,
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
-        mtl                  >= 2.2.2 && < 2.3,
         invertible           >= 0.2.0 && < 0.3,
