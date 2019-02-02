@@ -89,7 +89,7 @@ import qualified Data.Vector as V
 -- instance 'CsvMapped' TestItem where
 --  'csvMap' = 'CsvMap'
 --    $ "Field 1" '<->' #field1
--- ':|' 'Splice' #field2
+-- ':|' 'Nest' #field2
 -- ':|' "Field 3" '<->' #field3
 -- @
 
@@ -132,12 +132,12 @@ parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case in
     DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
 
 
-data Dummy = Dummy { sd :: SpliceDummy, dt :: Int, dt2 :: String} deriving (Generic, Show)
+data Dummy = Dummy { sd :: NestDummy, dt :: Int, dt2 :: String} deriving (Generic, Show)
 
-data SpliceDummy = SpliceDummy { sd1 :: String, sd2 :: Int, sd3 :: String} deriving (Generic, Show)
+data NestDummy = NestDummy { sd1 :: String, sd2 :: Int, sd3 :: String} deriving (Generic, Show)
 
-instance CsvMapped SpliceDummy where
+instance CsvMapped NestDummy where
   csvMap = CsvMap $ "sd1" <-> #sd1 :| "sd2" <-> #sd2 :| "column 3" <-> #sd3
 
 instance CsvMapped Dummy where
-  csvMap = CsvMap $ Splice #sd :|  "Column 1" <-> #dt :| "Column 2" <-> #dt2
+  csvMap = CsvMap $ Nest #sd :|  "Column 1" <-> #dt :| "Column 2" <-> #dt2

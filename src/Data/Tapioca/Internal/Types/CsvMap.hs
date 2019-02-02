@@ -53,7 +53,7 @@ class CsvMapped r where
 -- | The 'link' in a mapping chain.
 data FieldMapping (s :: Symbol) r f where
   Field :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Codec s r f c -> FieldMapping s r f
-  Splice :: forall s r f c. (CsvMapped c, Generic c) => Codec s r f c -> FieldMapping s r f
+  Nest :: forall s r f c. (CsvMapped c, Generic c) => Codec s r f c -> FieldMapping s r f
 
 -- | Match instance
 type instance Match (FieldMapping s _ _) s' = EqSymbol s s'
@@ -75,17 +75,17 @@ instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 
 instance HFoldVal (FieldMapping s r f) (r -> C.Record) where
   hFoldVal fm = case fm of
     Field _ cdc -> V.singleton . C.toField . biTo (_codec cdc) . _getCodecField cdc
-    Splice cdc -> toRecord . biTo (_codec cdc) . _getCodecField cdc
+    Nest cdc -> toRecord . biTo (_codec cdc) . _getCodecField cdc
 
 instance HFoldVal (FieldMapping s r f) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
     Field name cdc -> HM.singleton name . C.toField . biTo (_codec cdc) . _getCodecField cdc
-    Splice cdc -> toNamedRecord . biTo (_codec cdc) . _getCodecField cdc
+    Nest cdc -> toNamedRecord . biTo (_codec cdc) . _getCodecField cdc
 
 -- | Generate a header entry for this mapping
 instance HFoldVal (FieldMapping s r f) C.Header where
   hFoldVal (Field name _) = pure name
-  hFoldVal (Splice (_ :: Codec s r f c)) = hFoldOf (csvMap @c)
+  hFoldVal (Nest (_ :: Codec s r f c)) = hFoldOf (csvMap @c)
     where hFoldOf (CsvMap (m :: t)) = hFoldMap @_ @C.Header id m
 
 instance Index (FieldMapping s r f) s where
@@ -93,7 +93,7 @@ instance Index (FieldMapping s r f) s where
  
 instance Width (FieldMapping s r f) where
   width (Field _ _) = 1
-  width (Splice (_ :: Codec _ _ _ c)) = widthOf (csvMap @c)
+  width (Nest (_ :: Codec _ _ _ c)) = widthOf (csvMap @c)
     where widthOf (CsvMap mapping) = width mapping
 
 -- Encoding

@@ -94,19 +94,19 @@ instance CsvMapped MyRecord where
 
 ```
 
-## Splicing maps
-Occasionally you may want to nest a record within another record. Provided that both your records implement CsvMapped, this can be done by using the `Splice` constructor:
+## Nesting maps
+Occasionally you may want to nest a record within another record. Provided that both your records implement CsvMapped, this can be done by using the `Nest` constructor:
 
 ```haskell
-data SplicingRecord = SplicingRecord
+data NestingRecord = NestingRecord
   { exampleRecord :: ExampleRecord
   , other :: Int
   }
   deriving (Show, Generic)
 
-instance CsvMapped SplicingRecord where
+instance CsvMapped NestingRecord where
   csvMap = CsvMap
-     $ Splice #exampleRecord
+     $ Nest #exampleRecord
     :| "Other" <-> #other
 
 ```

@@ -2,11 +2,11 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Simple mapping of multiple records
 module Data.Tapioca.Examples.BasicEncode where
 
 import GHC.Generics
---import qualified Data.ByteString.Lazy.Char8 as BL
-
+import Text.Pretty.Simple
 import Data.Tapioca
 
 data BasicRecord = BasicRecord
@@ -24,10 +24,7 @@ instance CsvMapped BasicRecord where
 
 
 main :: IO ()
-main = do
-  let exampleRecords =
-        [ BasicRecord 1 "This is field 2" (Just 3)
-        , BasicRecord 2 "This is field 2 again" (Just 6)
-        ]
-
-  print $ encode HasHeader exampleRecords
+main = pPrint $
+  encode HasHeader [ BasicRecord 1 "This is field 2" (Just 3)
+                   , BasicRecord 2 "This is field 2 again" (Just 6)
+                   ]

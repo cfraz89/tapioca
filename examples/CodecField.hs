@@ -2,10 +2,14 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE LambdaCase #-}
 
+-- | Demonstration of providing a custom codec to a field
 module Data.Tapioca.Examples.CodecField where
 
 import GHC.Generics
+import Control.Invertible.Monoidal
+
 import Data.Tapioca
 
 data BasicRecord = BasicRecord
@@ -36,7 +40,6 @@ fromOrdinal = \case
   "Second"  -> 2
   "Third"   -> 3
   x         -> read x
-
 
 main :: IO ()
 main = do

@@ -42,8 +42,8 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
               where errMsg = "No column " <> BC.unpack name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
                     val = HM.lookup name namedRecord
                     decode = (biFrom (_codec cdc) <$>) . C.parseField
-            Splice (cdc :: Codec s r _ c) -> parseSplice (csvMap @c)
-              where parseSplice (CsvMap cm) = biFrom (_codec cdc) . to <$> gParseRecord @_ @c proxy# cm namedRecord
+            Nest (cdc :: Codec s r _ c) -> parseNest (csvMap @c)
+              where parseNest (CsvMap cm) = biFrom (_codec cdc) . to <$> gParseRecord @_ @c proxy# cm namedRecord
 
 instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
@@ -53,5 +53,5 @@ instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p
                     decode = (biFrom (_codec cdc) <$>) . C.parseField
                     --idx = index
                     val = record V.!? index @_ @s fieldMapping
-            Splice (cdc :: Codec s r _ c) -> parseSplice (csvMap @c)
-              where parseSplice (CsvMap cm) = biFrom (_codec cdc) . to <$> gParseRecord @_ @c proxy# cm record
+            Nest (cdc :: Codec s r _ c) -> parseNest (csvMap @c)
+              where parseNest (CsvMap cm) = biFrom (_codec cdc) . to <$> gParseRecord @_ @c proxy# cm record

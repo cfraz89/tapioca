@@ -3,10 +3,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Data.Tapioca.Examples.BasicEncode where
+-- | A demonstration that Fields are interpreted in
+-- the order of the mapping if the header row does not exist
+module Data.Tapioca.Examples.BasicDecodeNoHeader where
 
 import GHC.Generics
 import Data.Tapioca
+import Text.Pretty.Simple
 
 data BasicRecord = BasicRecord
   { field1 :: Int
@@ -23,8 +26,7 @@ instance CsvMapped BasicRecord where
 
 
 main :: IO ()
-main = do
-  let csvNoHeader = "First,8,testField2\r\n"
-                         <> "42,10,sample data"
-
-  print $ decode @BasicRecord (DecodeOrdered NoHeader) csvNoHeader
+main = pPrint $
+  decode @BasicRecord (DecodeOrdered NoHeader)
+      $ "1,8,testField2\r\n"
+     <> "42,10,sample data"

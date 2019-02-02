@@ -13,7 +13,7 @@ import Data.Kind
 import GHC.TypeLits
 
 -- | Determine how many columns a mapping consumes
--- Splices may take > 1
+-- Nests may take > 1
 class Width t where
   width :: t -> Int
 
@@ -22,7 +22,7 @@ class Width t where
 -- Takes into consideration splices inserted before position
 class Index t (s :: Symbol) where
   index :: t -> Int
- 
+
 -- | Class to decide on wether to progress to next segment based on selector matching of first
 class PickNext (t1 :: Type) (t2 :: Type) (m :: Bool) where
   type Next t1 t2 m :: Type
@@ -32,7 +32,7 @@ class PickNext (t1 :: Type) (t2 :: Type) (m :: Bool) where
 instance PickNext t1 t2 'True where
   type Next t1 t2 'True = t1
   incr _ = 0
-  next t1 _ = t1 
+  next t1 _ = t1
 
 instance Width t1 => PickNext t1 t2 'False where
   type Next t1 t2 'False = t2

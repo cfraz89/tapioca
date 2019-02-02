@@ -3,10 +3,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Data.Tapioca.Examples.BasicEncode where
+-- | Demonstration of basic use of Tapioca to decode a csv
+module Data.Tapioca.Examples.BasicDecode where
 
 import GHC.Generics
 import Data.Tapioca
+import Text.Pretty.Simple
 
 data BasicRecord = BasicRecord
   { field1 :: Int
@@ -23,8 +25,7 @@ instance CsvMapped BasicRecord where
 
 
 main :: IO ()
-main = do
-  let basicCsv = "Sample Field 1,Sample Field 2,Sample Field 3\r\n"
-                <> "First,testField,9"
-
-  print $ decode @BasicRecord DecodeNamed basicCsv
+main = pPrint $
+  decode @BasicRecord DecodeNamed
+     $ "Sample Field 1,Sample Field 2,Sample Field 3\r\n"
+    <> "12,testField,9"

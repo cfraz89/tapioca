@@ -6,8 +6,7 @@ author: Christopher Fraser
 category: Example
 build-type: Simple
 
-executable examples
-    main-is: Examples.hs
+common example
     default-language: Haskell2010
     ghc-options: -Wall
     build-depends:
@@ -16,4 +15,40 @@ executable examples
         bytestring,
         vector,
         invertible,
-        cassava
+        cassava,
+        pretty-simple
+
+executable basic_decode
+    import: example
+    main-is: BasicDecode.hs
+    ghc-options: -main-is Data.Tapioca.Examples.BasicDecode
+
+executable basic_decode_no_header
+    import: example
+    main-is: BasicDecodeNoHeader.hs
+    ghc-options: -main-is Data.Tapioca.Examples.BasicDecodeNoHeader
+
+executable basic_encode
+    import: example
+    main-is: BasicEncode.hs
+    ghc-options: -main-is Data.Tapioca.Examples.BasicEncode
+
+executable codec_field
+    import: example
+    main-is: CodecField.hs
+    ghc-options: -main-is Data.Tapioca.Examples.CodecField
+
+executable nested_decode
+    import: example
+    main-is: NestedDecode.hs
+    ghc-options: -main-is Data.Tapioca.Examples.NestedDecode
+
+executable nested_encode
+    import: example
+    main-is: NestedEncode.hs
+    ghc-options: -main-is Data.Tapioca.Examples.NestedEncode
+
+executable cassava_compat
+    import: example
+    main-is: CassavaCompat.hs
+    ghc-options: -main-is Data.Tapioca.Examples.CassavaCompat

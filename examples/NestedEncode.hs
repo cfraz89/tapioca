@@ -3,9 +3,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Data.Tapioca.Examples.BasicEncode where
+-- | Demonstration of how records are nested on encoding
+module Data.Tapioca.Examples.NestedEncode where
 
 import GHC.Generics
+import Text.Pretty.Simple
 import Data.Tapioca
 
 data BasicRecord = BasicRecord
@@ -35,11 +37,7 @@ instance CsvMapped NestingRecord where
     :| "Data" <-> #someData
 
 main :: IO ()
-main = do
-  let nestingRecords =
-        [ NestingRecord "Some data" (BasicRecord 1 "This is field 2" (Just 3)) 4
-        , NestingRecord "Some more data" (BasicRecord 2 "This is field 2 agagin" (Just 4)) 5
-        ]
-
-  print $ decode @BasicRecord DecodeNamed basicCsv
-
+main = pPrint $ encode HasHeader $
+  [ NestingRecord "Some data" (BasicRecord 1 "This is field 2" (Just 3)) 4
+  , NestingRecord "Some more data" (BasicRecord 2 "This is field 2 agagin" (Just 4)) 5
+  ]
