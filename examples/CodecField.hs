@@ -8,7 +8,7 @@
 module Data.Tapioca.Examples.CodecField where
 
 import GHC.Generics
-import Control.Invertible.Monoidal
+import Control.Lens
 
 import Data.Tapioca
 
@@ -21,9 +21,12 @@ data BasicRecord = BasicRecord
 
 instance CsvMapped BasicRecord where
  csvMap = CsvMap
-    $ "Sample Field 1" <-> codec (asOrdinal :<->: fromOrdinal) #field1
+    $ "Sample Field 1" <-> #field1 <:> ordinal
    :| "Sample Field 3" <-> #field3
    :| "Sample Field 2" <-> #field2
+
+ordinal :: Iso' Int String
+ordinal = iso asOrdinal fromOrdinal
 
 asOrdinal :: Int -> String
 asOrdinal = \case

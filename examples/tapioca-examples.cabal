@@ -16,7 +16,8 @@ common example
         vector,
         invertible,
         cassava,
-        pretty-simple
+        pretty-simple,
+        lens
 
 executable basic_decode
     import: example

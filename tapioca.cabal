@@ -20,7 +20,7 @@ source-repository head
 library
     exposed-modules: Data.Tapioca
     other-modules: Data.Tapioca.Internal.Common,
-                   Data.Tapioca.Internal.Types.Codec,
+                   Data.Tapioca.Internal.Types.FieldCodec,
                    Data.Tapioca.Internal.Types.ColSep,
                    Data.Tapioca.Internal.Types.CsvMap,
                    Data.Tapioca.Internal.Types.GParseRecord,
@@ -42,4 +42,4 @@ library
         unordered-containers >= 0.2.9 && < 0.3,
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
-        invertible           >= 0.2.0 && < 0.3,
+        lens                 >= 4.17 && < 4.18
