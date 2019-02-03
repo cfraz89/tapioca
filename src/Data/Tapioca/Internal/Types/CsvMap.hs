@@ -83,8 +83,8 @@ instance (r~r', f~f') => Reduce (FieldMapping s r f) s r' f' where
   selectorMapping = id
 
 -- | Reduce induction
-instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 m) => Reduce (t1 :| t2) s r f where
- selectorMapping t = selectorMapping (picked @_ @_ @m t)
+instance (Reduce tt s r f, m1 ~ Match t1 s, m2 ~ Match t2 s, PickMatch t1 t2 m1 m2 s, tt ~ Picked t1 t2 m1 m2 s) => Reduce (t1 :| t2) s r f where
+ selectorMapping t = selectorMapping (picked @_ @_ @m1 @m2 @s t)
 
 -- | Support for encoding
 instance HFoldVal (FieldMapping s r f) (r -> C.Record) where

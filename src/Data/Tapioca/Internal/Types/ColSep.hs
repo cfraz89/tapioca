@@ -15,6 +15,7 @@ module Data.Tapioca.Internal.Types.ColSep where
 import Data.Kind
 import Data.Semigroup
 import Data.Type.Bool
+import GHC.TypeLits
 
 import Data.Tapioca.Internal.Types.Index
 import Data.Tapioca.Internal.Types.Match
@@ -41,14 +42,19 @@ instance (m ~ Match t1 s, PickNext t1 t2 m, Index (Next t1 t2 m) s) => Index (t1
   index (t1 :| t2) = incr @_ @t2 @m t1 + index @_ @s (next @_ @_ @m t1 t2)
 
 -- Return t1 if provided with true, otherwise t2
-class PickMatch (t1 :: Type) (t2 :: Type) (b :: Bool) where
-  type Picked t1 t2 b :: Type
-  picked :: t1 :| t2 -> Picked t1 t2 b
+class PickMatch (t1 :: Type) (t2 :: Type) (b1 :: Bool) (b2 :: Bool) (s :: Symbol) where
+  type Picked t1 t2 b1 b2 s :: Type
+  picked :: t1 :| t2 -> Picked t1 t2 b1 b2 s
 
-instance PickMatch t1 t2 'True where
-  type Picked t1 t2 'True = t1
+instance PickMatch t1 t2 'True b2 s where
+  type Picked t1 t2 'True b2 s = t1
   picked (t1 :| _) = t1
 
-instance PickMatch t1 t2 'False where
-  type Picked t1 t2 'False = t2
+instance PickMatch t1 t2 'False 'True s where
+  type Picked t1 t2 'False 'True s = t2
   picked (_ :| t2) = t2
+
+instance PickMatch t1 t2 'False 'False s where
+  type Picked t1 t2 'False 'False s = TypeError ('Text "No mapping provided for field '" ':<>: 'Text s ':<>: 'Text "'!\r\n"
+                                                 ':<>: 'Text "\tAll fields must exist in a mapping")
+  picked _ = undefined

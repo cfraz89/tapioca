@@ -155,14 +155,3 @@ parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case in
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
     DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
     DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
-
-
-data Dummy = Dummy { sd :: NestDummy, dt :: Int, dt2 :: String} deriving (Generic, Show)
-
-data NestDummy = NestDummy { sd1 :: String, sd2 :: Int, sd3 :: String} deriving (Generic, Show)
-
-instance CsvMapped NestDummy where
-  csvMap = CsvMap $ "sd1" <-> #sd1 :| "sd2" <-> #sd2 :| "column 3" <-> #sd3
-
-instance CsvMapped Dummy where
-  csvMap = CsvMap $ nest #sd :|  "Column 1" <-> #dt :| "Column 2" <-> #dt2
