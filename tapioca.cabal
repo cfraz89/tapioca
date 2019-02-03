@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: tapioca
-version: 0.1.0.0
+version: 0.1.1.0
 license: BSD-3-Clause
 license-file: LICENSE
 maintainer: cfraz89@gmail.com
@@ -9,7 +9,13 @@ synopsis: A tasty enhancement to cassava for easy csv exporting
 description: tapioca is a package that builds on cassava, to provide a simpler, more succinct method of mapping records to and from csv data.
 category: Text, Web, CSV
 extra-source-files:
-    examples/Examples.hs
+    examples/BasicDecode.hs
+    examples/BasicDecodeNoHeader.hs
+    examples/BasicEncode.hs
+    examples/CassavaCompat.hs
+    examples/CodecField.hs
+    examples/NestedDecode.hs
+    examples/NestedEncode.hs
     CHANGELOG.md
     README.md
 
@@ -20,7 +26,7 @@ source-repository head
 library
     exposed-modules: Data.Tapioca
     other-modules: Data.Tapioca.Internal.Common,
-                   Data.Tapioca.Internal.Types.FieldCodec,
+                   Data.Tapioca.Internal.Types.Field,
                    Data.Tapioca.Internal.Types.ColSep,
                    Data.Tapioca.Internal.Types.CsvMap,
                    Data.Tapioca.Internal.Types.GParseRecord,
@@ -43,3 +49,15 @@ library
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
         lens                 >= 4.17 && < 4.18
+
+test-suite tapioca-tests
+    type:       exitcode-stdio-1.0
+    default-language: Haskell2010
+    main-is:    TapiocaTests.hs
+    hs-source-dirs: tests
+    ghc-options: -Wall
+    build-depends:
+        base,
+        hspec,
+        tapioca,
+        vector

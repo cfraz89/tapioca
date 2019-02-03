@@ -24,7 +24,7 @@ import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
 
-import Data.Tapioca.Internal.Types.FieldCodec
+import Data.Tapioca.Internal.Types.Field
 import Data.Tapioca.Internal.Types.ColSep
 import Data.Tapioca.Internal.Types.HFoldable
 import Data.Tapioca.Internal.Types.Index
@@ -43,19 +43,22 @@ data CsvMap r = forall m.
   , Width m
   ) =>
   CsvMap m
-
-infixl 3 <->
+  
 -- | This is the core type class of tapioca. Implement it in your types to support easy encoding to CSV
 class CsvMapped r where
   csvMap :: CsvMap r
 
-  (<->) :: forall s f c. (C.FromField c, C.ToField c) => B.ByteString -> FieldCodec s r f c -> FieldMapping s r f
-  name <-> cdc  = Field name cdc
+infixl 3 <->
+-- | Create a bidirectional mapping from name to field 
+(<->) :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s r f
+name <-> cdc  = MapField name cdc
 
--- | The 'link' in a mapping chain.
+-- | The building block of a mapping
+-- MapField - A mapping from a field name to a field. Use (`<->`) to create a mapping.
+-- Nest - A directive to nest the `CsvMapped` record pointed to by this field, at this location
 data FieldMapping (s :: Symbol) r f where
-  Field :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> FieldCodec s r f c -> FieldMapping s r f
-  Nest :: forall s r f c. (CsvMapped c, Generic c) => FieldCodec s r f c -> FieldMapping s r f
+  MapField :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s r f
+  Nest :: forall s r f c. (CsvMapped c, Generic c) => Field s r f c -> FieldMapping s r f
 
 -- | Match instance
 type instance Match (FieldMapping s _ _) s' = EqSymbol s s'
@@ -76,26 +79,26 @@ instance (Reduce tt s r f, m ~ Match t1 s, PickMatch t1 t2 m, tt ~ Picked t1 t2 
 -- | Support for encoding
 instance HFoldVal (FieldMapping s r f) (r -> C.Record) where
   hFoldVal fm = case fm of
-    Field _ FieldCodec{..} -> V.singleton . C.toField . view (_field . _codec)
-    Nest FieldCodec{..} -> toRecord . view (_field . _codec)
+    MapField _ Field{..} -> V.singleton . C.toField . view (_field . _codec)
+    Nest Field{..} -> toRecord . view (_field . _codec)
 
 instance HFoldVal (FieldMapping s r f) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
-    Field name FieldCodec{..} -> HM.singleton name . C.toField . view (_field . _codec)
-    Nest FieldCodec{..} -> toNamedRecord . view (_field . _codec)
+    MapField name Field{..} -> HM.singleton name . C.toField . view (_field . _codec)
+    Nest Field{..} -> toNamedRecord . view (_field . _codec)
 
 -- | Generate a header entry for this mapping
 instance HFoldVal (FieldMapping s r f) C.Header where
-  hFoldVal (Field name _) = pure name
-  hFoldVal (Nest (_ :: FieldCodec s r f c)) = hFoldOf (csvMap @c)
+  hFoldVal (MapField name _) = pure name
+  hFoldVal (Nest (_ :: Field s r f c)) = hFoldOf (csvMap @c)
     where hFoldOf (CsvMap (m :: t)) = hFoldMap @_ @C.Header id m
 
 instance Index (FieldMapping s r f) s where
   index _ = 0
 
 instance Width (FieldMapping s r f) where
-  width (Field _ _) = 1
-  width (Nest (_ :: FieldCodec _ _ _ c)) = widthOf (csvMap @c)
+  width (MapField _ _) = 1
+  width (Nest (_ :: Field _ _ _ c)) = widthOf (csvMap @c)
     where widthOf (CsvMap mapping) = width mapping
 
 -- Encoding

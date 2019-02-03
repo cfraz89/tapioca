@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Data.Tapioca.Internal.Types.FieldCodec(FieldCodec(..), (<:>), codec) where
+module Data.Tapioca.Internal.Types.Field (Field(..), (<:>), codec) where
 
 import Control.Lens
 import GHC.OverloadedLabels
@@ -24,17 +24,17 @@ import GHC.TypeLits
 -- r - Record type
 -- f - field type with record
 -- c - type to encode and decode as
-data FieldCodec (s :: Symbol) r f c = FieldCodec
+data Field (s :: Symbol) r f c = Field
   { _field :: Getter r f
   , _codec :: Iso' f c
   }
 
 infixl 4 <:>
-(<:>) :: FieldCodec s r f c -> Iso' f c' -> FieldCodec s r f c'
+(<:>) :: Field s r f c -> Iso' f c' -> Field s r f c'
 fc <:> c = fc { _codec = c }
 
-codec :: FieldCodec s r f c -> Iso' f c' -> FieldCodec s r f c'
+codec :: Field s r f c -> Iso' f c' -> Field s r f c'
 codec fc c = fc <:> c
 
-instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (FieldCodec x' r' f' c) where
-  fromLabel = FieldCodec (to $ getField @x) (iso id id)
+instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' r' f' c) where
+  fromLabel = Field (to $ getField @x) (iso id id)

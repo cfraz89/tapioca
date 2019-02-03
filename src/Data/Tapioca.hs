@@ -17,6 +17,7 @@
 -- | This module builds on <http://hackage.haskell.org/package/cassava> to provide support for simpler mapping of records to and from CSV.
 --
 -- This is primarily achieved by use of modern GHC features such as HasField and OverloadedLabels.
+-- Mappings created in Tapioca are type-safe - all fields must be accounted for when creating a mapping.
 
 module Data.Tapioca
   (
@@ -30,10 +31,10 @@ module Data.Tapioca
     -- The class provides a 'CsvMap', which is a list of either:
     --
     --   * A bidirectional mapping from header to field selector, or
-    --   * The field selector of a record (also implementing 'CsvMapped' to nest
+    --   * A nesting of a CsvMapped record
     --
-    -- Each mapping can be mapped in either direction using the `Data.Profunctor` instance functions 'Data.ProFunctor.lmap' to map encoding,
-    -- 'Data.ProFunctor.rmap' to map decoding, or 'Data.ProFunctor.dimap' for both. Refer to examples to see this in practice.
+    -- The encoding for each field selector can be extended beyond the ToField and FromField instances by providing an `Control.Lens.Iso.Iso`.
+
     -- $example-class
 
     -- | == Encoding and decoding
@@ -47,6 +48,7 @@ module Data.Tapioca
   , DecodeIndexing(..)
   , FieldMapping(..)
   , (:|)(..)
+  , (<->)
   , encode
   , decode
   , header
@@ -63,7 +65,7 @@ import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Types.ColSep
 import Data.Tapioca.Internal.Types.CsvMap
 import Data.Tapioca.Internal.Common
-import Data.Tapioca.Internal.Types.FieldCodec
+import Data.Tapioca.Internal.Types.Field
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
 import Data.Tapioca.Internal.Types.ParseRecord()
 
@@ -89,7 +91,7 @@ import qualified Data.Vector as V
 -- @
 -- instance 'CsvMapped' TestItem where
 --  'csvMap' = 'CsvMap'
---    $ "Field 1" '<->' #field1
+--  $ "Field 1" '<->' #field1
 -- ':|' 'Nest' #field2
 -- ':|' "Field 3" '<->' #field3
 -- @
@@ -98,7 +100,7 @@ import qualified Data.Vector as V
 -- To encode to csv:
 --
 -- @
--- 'encode' 'Data.Csv.HasHeader' testItems
+-- 'encode' 'HasHeader' testItems
 -- @
 --
 -- To decode from csv:
