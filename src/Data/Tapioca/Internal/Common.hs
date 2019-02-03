@@ -32,7 +32,10 @@ toParser (Right a) = pure a
 bsVectorString :: [B.ByteString] -> String
 bsVectorString = BC.unpack . BC.intercalate ","
 
+-- | The method via which to attempt decoding of the record
 data DecodeIndexing r t where
-  DecodeNamed :: DecodeIndexing r C.NamedRecord -- assumes presence of header
+  -- | Use the csv's header row to match against our field mappings. This is the primary use case.
+  DecodeNamed :: DecodeIndexing r C.NamedRecord
+  -- | Attempt to read the csv in the same order as our mapping has been defined.
+  -- If HasHeader is set, the first row (header row) will be skipped.
   DecodeOrdered :: C.HasHeader -> DecodeIndexing r C.Record
-

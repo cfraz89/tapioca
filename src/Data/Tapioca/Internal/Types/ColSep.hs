@@ -22,6 +22,8 @@ import Data.Tapioca.Internal.Types.HFoldable
 
 -- Our joining/induction type for records
 infixl 1 :|
+
+-- | Joins together FieldMappings to create a CsvMap
 data a :| b = a :| b
 
 -- | Induction over :|

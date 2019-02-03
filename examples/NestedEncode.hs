@@ -32,7 +32,7 @@ data NestingRecord = NestingRecord
 
 instance CsvMapped NestingRecord where
   csvMap = CsvMap
-    $ Nest #nested
+     $ nest #nested
     :| "Other" <-> #someOtherData
     :| "Data" <-> #someData
 

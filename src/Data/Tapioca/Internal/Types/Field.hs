@@ -27,9 +27,12 @@ data Field (s :: Symbol) r f c = Field
   }
 
 infixl 4 <:>
+
+-- | Perform a bidirectional mapping on this field with the given 'Iso'
 (<:>) :: Field s r f c -> Iso' f c' -> Field s r f c'
 fc <:> c = fc { _codec = c }
 
+-- | A prefix synonym for '<:>'.
 codec :: Field s r f c -> Iso' f c' -> Field s r f c'
 codec fc c = fc <:> c
 

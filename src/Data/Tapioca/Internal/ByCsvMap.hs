@@ -13,6 +13,8 @@ import GHC.Generics
 import qualified Data.Csv as C
 
 -- | A newtype which provides instances for Cassava's To*, From*, and DefaultOrdered typeclasses
+-- Can be used with DerivingVia to provide these instances to your records directly. Refer to
+-- CassavaCompat example for a demonstration.
 newtype ByCsvMap a = ByCsvMap { unByCsvMap :: a }
 
 -- | Provides Cassava instances for our records wrapped in ByCsvMap.

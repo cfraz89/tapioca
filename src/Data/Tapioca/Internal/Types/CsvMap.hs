@@ -13,6 +13,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
@@ -34,28 +35,37 @@ import Data.Tapioca.Internal.Types.GParseRecord
 import GHC.Generics
 import GHC.TypeLits
 
-data CsvMap r = forall m.
+type CsvMappable r m =
   ( GenericCsvDecode r m C.NamedRecord
   , GenericCsvDecode r m C.Record
   , HFoldable m (r -> C.NamedRecord)
   , HFoldable m (r -> V.Vector C.Field) -- For encode ToRecord
   , HFoldable m C.Header -- To List headers
   , Width m
-  ) =>
-  CsvMap m
-  
+  )
+
+data CsvMap r = forall m. CsvMappable r m => CsvMap m
+
 -- | This is the core type class of tapioca. Implement it in your types to support easy encoding to CSV
 class CsvMapped r where
   csvMap :: CsvMap r
 
 infixl 3 <->
--- | Create a bidirectional mapping from name to field 
+-- | Create a bidirectional mapping from name to field.
 (<->) :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s r f
 name <-> cdc  = MapField name cdc
 
--- | The building block of a mapping
--- MapField - A mapping from a field name to a field. Use (`<->`) to create a mapping.
--- Nest - A directive to nest the `CsvMapped` record pointed to by this field, at this location
+-- | Nest the record at this field into the mapping at this point.
+nest :: forall s r f c. (CsvMapped c, Generic c) => Field s r f c -> FieldMapping s r f
+nest = Nest
+
+-- | A mapping for a single field in our record.
+-- A `CsvMap` is a chain of FieldMappings joined with `:|`
+--
+-- Can be created with:
+--
+--   * '<->' to map a single field
+--   * 'nest' to nest the record at this field
 data FieldMapping (s :: Symbol) r f where
   MapField :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s r f
   Nest :: forall s r f c. (CsvMapped c, Generic c) => Field s r f c -> FieldMapping s r f
@@ -103,17 +113,17 @@ instance Width (FieldMapping s r f) where
 
 -- Encoding
 -- | Return a vector of all headers specified by our csv map in order. Nested maps will have their headers spliced inline.
--- | Similar to cassava's headerOrder function
+-- Similar to cassava's headerOrder function.
 header :: forall r. CsvMapped r => C.Header
 header = fromCsvMap (csvMap @r)
   where fromCsvMap (CsvMap mapping) = hFoldMap @_ @C.Header id mapping
 
--- | Tapioca equivalent of cassava's toRecord
+-- | Encode a single record to a cassava 'Record' by ordering.
 toRecord :: forall r. CsvMapped r => r -> C.Record
 toRecord record = foldCsvMap (csvMap @r)
   where foldCsvMap (CsvMap mapping) = hFoldMap @_ @(r -> C.Record) ($ record) mapping
 
--- | Tapioca equivalent of cassava's toNamedRecord
+-- | Encode a single record to a cassava 'NamedRecord'.
 toNamedRecord :: forall r. CsvMapped r => r -> C.NamedRecord
 toNamedRecord record = foldCsvMap (csvMap @r)
   where foldCsvMap (CsvMap mapping) = hFoldMap @_ @(r -> C.NamedRecord) ($ record) mapping

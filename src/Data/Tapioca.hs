@@ -17,12 +17,14 @@
 -- | This module builds on <http://hackage.haskell.org/package/cassava> to provide support for simpler mapping of records to and from CSV.
 --
 -- This is primarily achieved by use of modern GHC features such as HasField and OverloadedLabels.
+--
 -- Mappings created in Tapioca are type-safe - all fields must be accounted for when creating a mapping.
 
 module Data.Tapioca
   (
     -- | = Usage
     -- You will need the following language extensions to use Tapioca:
+    --
     --   * OverloadedStrings
     --   * OverloadedLabels
     --   * DeriveGeneric
@@ -40,7 +42,11 @@ module Data.Tapioca
     --
     -- The encoding for each field selector can be extended beyond the ToField and FromField instances by providing an `Control.Lens.Iso.Iso`.
 
-    -- $example-class
+    -- | === Basic mapping
+    -- $example-basic-class
+
+    -- | === Mapping a field
+    -- $example-iso-class
 
     -- | == Encoding and decoding
     -- The 'encode' and 'decode' functions will infer our 'CsvMapped' type and perform the mapping.
@@ -51,9 +57,10 @@ module Data.Tapioca
   , CsvMapped(..)
   , ByCsvMap(..)
   , DecodeIndexing(..)
-  , FieldMapping(..)
+  , FieldMapping
   , (:|)(..)
   , (<->)
+  , nest
   , encode
   , decode
   , header
@@ -93,12 +100,21 @@ import qualified Data.Vector as V
 --  } deriving Generic
 -- @
 
--- $example-class
+-- $example-basic-class
 -- @
 -- instance 'CsvMapped' TestItem where
 --  'csvMap' = 'CsvMap'
 --  $ "Field 1" '<->' #field1
--- ':|' 'Nest' #field2
+-- ':|' 'nest' #field2
+-- ':|' "Field 3" '<->' #field3
+-- @
+
+-- $example-iso-class
+-- @
+-- instance 'CsvMapped' TestItem where
+--  'csvMap' = 'CsvMap'
+--  $ "Field 1" '<->' #field1 '<:>' iso (+1) (-1)
+-- ':|' 'nest' #field2
 -- ':|' "Field 3" '<->' #field3
 -- @
 
@@ -149,4 +165,4 @@ instance CsvMapped NestDummy where
   csvMap = CsvMap $ "sd1" <-> #sd1 :| "sd2" <-> #sd2 :| "column 3" <-> #sd3
 
 instance CsvMapped Dummy where
-  csvMap = CsvMap $ Nest #sd :|  "Column 1" <-> #dt :| "Column 2" <-> #dt2
+  csvMap = CsvMap $ nest #sd :|  "Column 1" <-> #dt :| "Column 2" <-> #dt2

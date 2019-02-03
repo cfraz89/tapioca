@@ -108,7 +108,7 @@ data NestingRecord = NestingRecord
 
 instance CsvMapped NestingRecord where
   csvMap = CsvMap
-     $ Nest #exampleRecord
+     $ nest #exampleRecord
     :| "Other" <-> #other
 
 ```
