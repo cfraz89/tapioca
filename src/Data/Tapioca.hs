@@ -21,7 +21,12 @@
 
 module Data.Tapioca
   (
-    -- = Example
+    -- | = Usage
+    -- You will need the following language extensions to use Tapioca:
+    --   * OverloadedStrings
+    --   * OverloadedLabels
+    --   * DeriveGeneric
+    --   * TypeApplications
 
     -- | == Defining a record
     -- First, we define a record with which we want to map to and from our csv data
@@ -76,6 +81,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Csv as C
 import qualified Data.Csv.Builder as CB
 import qualified Data.Csv.Parser as CP
+import Data.Semigroup ((<>))
 import qualified Data.Vector as V
 
 -- $example-record

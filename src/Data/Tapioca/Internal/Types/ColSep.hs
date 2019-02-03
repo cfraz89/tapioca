@@ -13,6 +13,7 @@
 module Data.Tapioca.Internal.Types.ColSep where
 
 import Data.Kind
+import Data.Semigroup
 import Data.Type.Bool
 
 import Data.Tapioca.Internal.Types.Index

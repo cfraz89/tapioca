@@ -17,9 +17,6 @@ import GHC.OverloadedLabels
 import GHC.Records
 import GHC.TypeLits
 
---import qualified Data.Invertible as Inv
---import Data.Invertible.Bijection
-
 -- Initially expose our field type so that it can be mapped over
 -- r - Record type
 -- f - field type with record

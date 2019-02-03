@@ -7,6 +7,7 @@
 module Data.Tapioca.Internal.Types.HFoldable where
 
 import Data.Kind
+import Data.Semigroup (Semigroup)
 
 -- | Heterogeneous folding required for encoding
 class HFoldVal (t :: Type) x where

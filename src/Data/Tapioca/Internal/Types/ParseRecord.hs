@@ -35,6 +35,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
+import Data.Semigroup ((<>))
 
 instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType

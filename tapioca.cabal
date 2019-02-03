@@ -19,6 +19,8 @@ extra-source-files:
     CHANGELOG.md
     README.md
 
+Tested-with: GHC ==8.6.3, GHC ==8.6.2, GHC ==8.2.2
+
 source-repository head
   type: git
   location: https://github.com/cfraz89/tapioca.git
