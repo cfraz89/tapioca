@@ -58,8 +58,10 @@ module Data.Tapioca
   , ByCsvMap(..)
   , DecodeIndexing(..)
   , FieldMapping
+  , Field
   , (:|)(..)
   , (<->)
+  , (|->)
   , nest
   , encode
   , decode

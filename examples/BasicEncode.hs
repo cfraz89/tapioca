@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Simple mapping of multiple records
+-- | Encoding of a basic map
 module Data.Tapioca.Examples.BasicEncode where
 
 import GHC.Generics

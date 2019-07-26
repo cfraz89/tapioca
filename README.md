@@ -38,8 +38,8 @@ instance FromNamedRecord MyRecord where
       <*> m .: "Header for Field 2"
 
 -- Example usage
-myCSV :: ByteString
-myCSV = encodeDefaultOrderedByName myRecords
+toCSV :: ByteString
+toCSV = encodeDefaultOrderedByName myRecords
 
 fromCSV :: ByteString -> Either String (Vector MyRecord)
 fromCSV = (snd <$>) . decodeByName
@@ -65,10 +65,11 @@ fromCSV :: ByteString -> Either String (Vector MyRecord)
 fromCSV = decode HasHeader
 ```
 
-We see here that tapioca provides us with a more succinct definition for defining CSV mappings, avoiding any unnecessary duplication, and keeping the entire definition within a single typeclass.
+We see here that tapioca provides us with a more succinct definition for defining bidrectional CSV mappings, avoiding any unnecessary duplication, and keeping the entire definition within a single typeclass.
 
 ## Usage
-As seen earlier, the key part of using Tapioca is to define an instance of `CsvMapped` for your type:
+### Bidirectional mappings
+As seen earlier, the key part of using Tapioca to create a bidirectional mapping is to define an instance of `CsvMapped` for your type, using the `CsvMap` constructor:
 
 ```haskell
 instance CsvMapped MyRecord where
@@ -79,7 +80,7 @@ instance CsvMapped MyRecord where
 
 ```
 
-### Mapping selectors
+#### Mapping selectors
 Fields can be mapped on top of cassava's `FromField` and `ToField` instances on a per-field basis.
 As mappings are expected to be isomorphisms, they are defined a lens `Iso`.
 If you wish to map a field over an isomorphism, you can use either the `<:>` or  `codec` (synonyms of each other) combinators:
@@ -95,6 +96,17 @@ instance CsvMapped MyRecord where
 
 ```
 Refer to the *CodecField* example to see this in practice.
+
+### Encode-only mapspings
+Encode-only mappings are more flexible than bidrectional mappings, as there is no concern for parsing a csv back into the record. They are created with the `CsvEncodeMap` constructor, and the |-> combinator to map headers to fields:
+
+```haskell
+instance CsvMapped BasicRecord where
+ csvMap = CsvEncodeMap
+    $ "Header for Field 1" |-> field1 -- a lens to field1
+   :| "Header for Field 2" |-> field2
+   :| "Header for Field 3" |-> field3 . to (++ " plus more")
+```
 
 ### Nesting maps
 Occasionally you may want to nest a record within another record. Provided that both your records implement `CsvMapped`, this can be done by using the `Nest` constructor:
