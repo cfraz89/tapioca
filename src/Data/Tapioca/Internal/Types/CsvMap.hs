@@ -10,7 +10,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -20,7 +19,6 @@
 
 module Data.Tapioca.Internal.Types.CsvMap where
 
-import Control.Lens (Getter, view)
 import qualified Data.ByteString as B
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
@@ -56,15 +54,15 @@ type CsvEncode r (m :: Type -> Type) =
 data CsvMap r = forall m. (CsvDecode r m, CsvEncode r m) => CsvMap (m r)
               | forall m. CsvEncode r m => CsvEncodeMap (m r)
 
-infixl 3 <->
+infixl 5 <->
 -- | Create a bidirectional mapping from name to field.
 (<->) :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s f r
-name <-> field  = BicodeField name field
+name <-> field  = Bicode name field
 
-infixl 3 |->
+infixl 5 <-<
 -- | Create an encode-only mapping from name to field.
-(|->) :: forall r f. (C.ToField f) => B.ByteString -> Getter r f -> FieldMapping "" f r
-name |-> getter  = EncodeField @f name getter
+(<-<) :: forall r f. (C.ToField f) => B.ByteString -> EncodeField r f -> FieldMapping "" f r
+name <-< ef  = Encode @f name ef
 
 -- | Nest the record at this field into the mapping at this point.
 nest :: forall s r f c. (CsvMapped c, Generic c) => Field s r f c -> FieldMapping s f r
@@ -78,8 +76,8 @@ nest = Nest
 --   * '<->' to map a single field
 --   * 'nest' to nest the record at this field
 data FieldMapping (s :: Symbol) f r where
-  BicodeField :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s f r
-  EncodeField :: C.ToField f => B.ByteString -> Getter r f -> FieldMapping "" f r
+  Bicode :: forall s r f c. (C.FromField c, C.ToField c) => B.ByteString -> Field s r f c -> FieldMapping s f r
+  Encode :: C.ToField f => B.ByteString -> EncodeField r f -> FieldMapping "" f r
   Nest :: forall s r f c. (CsvMapped c, Generic c) => Field s r f c -> FieldMapping s f r
 
 -- | Match instance
@@ -101,20 +99,20 @@ instance (Reduce tt s r f, m1 ~ Match t1 s, m2 ~ Match t2 s, PickMatch t1 t2 m1 
 -- | Support for encoding
 instance HFoldVal (FieldMapping s f r) (r -> C.Record) where
   hFoldVal fm = case fm of
-    BicodeField _ Field{..} -> V.singleton . C.toField . view (_field . _codec)
-    EncodeField _ getter -> V.singleton . C.toField . view getter
-    Nest Field{..} -> toRecord . view (_field . _codec)
+    Bicode _ (Field field (Codec enc _)) -> V.singleton . C.toField . enc . field
+    Encode _ (EncodeField e) -> V.singleton . C.toField . e
+    Nest (Field field (Codec enc _)) -> toRecord . enc . field
 
 instance HFoldVal (FieldMapping s f r) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
-    BicodeField name Field{..} -> HM.singleton name . C.toField . view (_field . _codec)
-    EncodeField name getter -> HM.singleton name . C.toField . view getter
-    Nest Field{..} -> toNamedRecord . view (_field . _codec)
+    Bicode name (Field field (Codec enc _)) -> HM.singleton name . C.toField . enc . field
+    Encode name (EncodeField e) -> HM.singleton name . C.toField . e
+    Nest (Field field (Codec enc _)) -> toNamedRecord . enc . field
 
 -- | Generate a header entry for this mapping
 instance HFoldVal (FieldMapping s f r) C.Header where
-  hFoldVal (BicodeField name _) = pure name
-  hFoldVal (EncodeField name _) = pure name
+  hFoldVal (Bicode name _) = pure name
+  hFoldVal (Encode name _) = pure name
   hFoldVal (Nest (_ :: Field s r f c)) = hFoldOf (csvMap @c)
     where hFoldOf (CsvMap m) = foldHeader m
           hFoldOf (CsvEncodeMap m) = foldHeader m
@@ -126,8 +124,8 @@ instance Index (FieldMapping s f r) s where
   index _ = 0
 
 instance Width (FieldMapping s f) r where
-  width (BicodeField _ _) = 1
-  width (EncodeField _ _) = 0 -- Not relevant for encoding
+  width (Bicode _ _) = 1
+  width (Encode _ _) = 0 -- Not relevant for encoding
   width (Nest (_ :: Field _ _ _ c)) = widthOf (csvMap @c)
     where widthOf (CsvMap mapping) = width mapping
           widthOf (CsvEncodeMap _) = 0 -- Not relevant for encoding

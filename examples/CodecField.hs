@@ -8,9 +8,9 @@
 module Data.Tapioca.Examples.CodecField where
 
 import GHC.Generics
-import Control.Lens
 
 import Data.Tapioca
+import Text.Pretty.Simple
 
 data BasicRecord = BasicRecord
   { field1 :: Int
@@ -21,12 +21,9 @@ data BasicRecord = BasicRecord
 
 instance CsvMapped BasicRecord where
  csvMap = CsvMap
-    $ "Sample Field 1" <-> #field1 <:> ordinal
+    $ "Sample Field 1" <-> #field1 `codec` (asOrdinal, fromOrdinal)
    :| "Sample Field 3" <-> #field3
    :| "Sample Field 2" <-> #field2
-
-ordinal :: Iso' Int String
-ordinal = iso asOrdinal fromOrdinal
 
 asOrdinal :: Int -> String
 asOrdinal = \case
@@ -49,4 +46,4 @@ main = do
   let basicCsv = "Sample Field 1,Sample Field 2,Sample Field 3\r\n"
                 <> "First,testField,9"
 
-  print $ decode @BasicRecord DecodeNamed basicCsv
+  pPrint $ decode @BasicRecord DecodeNamed basicCsv

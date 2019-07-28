@@ -80,33 +80,29 @@ instance CsvMapped MyRecord where
 
 ```
 
-#### Mapping selectors
-Fields can be mapped on top of cassava's `FromField` and `ToField` instances on a per-field basis.
-As mappings are expected to be isomorphisms, they are defined a lens `Iso`.
-If you wish to map a field over an isomorphism, you can use either the `<:>` or  `codec` (synonyms of each other) combinators:
-
-```haskell
-import Control.Lens.Iso
-
-instance CsvMapped MyRecord where
-  csvMap = mkCsvMap
-     $ "Header for Field 1" <-> #field1 <:> iso asOrdinal fromOrdinal
-     -- or
-    :| "Header for Field 2" <-> codec #field2 (iso asOrdinal fromOrdinal)
-
-```
-Refer to the *CodecField* example to see this in practice.
-
-### Encode-only mapspings
+### Encode-only mappings
 Encode-only mappings are more flexible than bidrectional mappings, as there is no concern for parsing a csv back into the record. They are created with the `CsvEncodeMap` constructor, and the |-> combinator to map headers to fields:
 
 ```haskell
 instance CsvMapped BasicRecord where
  csvMap = CsvEncodeMap
-    $ "Header for Field 1" |-> field1 -- a lens to field1
-   :| "Header for Field 2" |-> field2
-   :| "Header for Field 3" |-> field3 . to (++ " plus more")
+    $ "Header for Field 1" <- #field1
+   :| "Header for Field 2" <- #field2
 ```
+
+#### Mapping selectors
+Fields can be mapped on top of cassava's `FromField` and `ToField` instances on a per-field basis.
+If you wish to map a bidirectional field, use `codec` together with encoding and decoding mapping functions.
+If you wish to map an encode-only field, use `encoder` together with an encoding function.
+
+```haskell
+instance CsvMapped MyRecord where
+  csvMap = CsvEncodeMap
+    $ "Header for Field 1" <-> #field1 `codec` (toOrdinal, fromOrdinal)
+   :| "Header for Field 2" <- #field2 `encoder` toOrdinal
+
+```
+Refer to the *CodecField* and *EncodeOnly* examples to see this in practice.
 
 ### Nesting maps
 Occasionally you may want to nest a record within another record. Provided that both your records implement `CsvMapped`, this can be done by using the `Nest` constructor:

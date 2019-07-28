@@ -1,18 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
---Remove later
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 
 -- | This module builds on <http://hackage.haskell.org/package/cassava> to provide support for simpler mapping of records to and from CSV.
 --
@@ -30,7 +21,7 @@ module Data.Tapioca
     --   * DeriveGeneric (for bidirectional mapping)
 
     -- | == Defining a record
-    -- First, we define a record with which we want to map to and from our csv data
+    -- First, we define a record with which we want to map to and from our csv data. Generic is only needed if we intend to map the record bidirectionally.
     -- $example-record
 
     -- | == Declaring a 'CsvMapped' instance
@@ -58,15 +49,18 @@ module Data.Tapioca
   , DecodeIndexing(..)
   , FieldMapping
   , Field
+  , EncodeField
+  , Codec
   , (:|)(..)
   , (<->)
-  , (|->)
+  , (<-<)
   , nest
   , encode
   , decode
   , header
-  , (<:>)
   , codec
+  , encoder
+  , encodeField
   , toRecord
   , toNamedRecord
   , C.HasHeader(..)
