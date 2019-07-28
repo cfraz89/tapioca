@@ -1,10 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 -- | Encoding an encode-only map
 module Data.Tapioca.Examples.EncodeOnly where
@@ -22,10 +18,10 @@ data BasicRecord = BasicRecord
 
 instance CsvMapped BasicRecord where
  csvMap = CsvEncodeMap
-    $ "Sample Field 1" |-> to field1 -- Encode-only combinator is preferred
+    $ "Sample Field 1" |-> to field1 
    :| "Computed From Field 2" |-> to field2 . to (++ " plus more")
-   :| "Sample Field 3" <-> (#field3 :: Field _ BasicRecord (Maybe Int) _) -- For encode maps, type system needs assistance for using bidrectional / #field notation
-   :| "Arbitrary Field" |-> like @_ @_ @String @BasicRecord "Any data"
+   :| "Sample Field 3" <-> #field3 -- The bidirectional combinator can still be used
+   :| "Arbitrary Field" |-> like ("Any data" :: String)
 
 
 main :: IO ()

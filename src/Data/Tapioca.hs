@@ -27,8 +27,7 @@ module Data.Tapioca
     --
     --   * OverloadedStrings
     --   * OverloadedLabels
-    --   * DeriveGeneric
-    --   * TypeApplications
+    --   * DeriveGeneric (for bidirectional mapping)
 
     -- | == Defining a record
     -- First, we define a record with which we want to map to and from our csv data

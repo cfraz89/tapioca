@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: tapioca
-version: 0.1.1.0
+version: 0.2.0
 license: BSD-3-Clause
 license-file: LICENSE
 maintainer: cfraz89@gmail.com
@@ -14,12 +14,13 @@ extra-source-files:
     examples/BasicEncode.hs
     examples/CassavaCompat.hs
     examples/CodecField.hs
+    examples/EncodeOnly.hs
     examples/NestedDecode.hs
     examples/NestedEncode.hs
     CHANGELOG.md
     README.md
 
-Tested-with: GHC ==8.6.3, GHC ==8.6.2, GHC ==8.2.2
+Tested-with: GHC ==8.6.5, GHC ==8.6.3, GHC ==8.6.2, GHC ==8.2.2
 
 source-repository head
   type: git
