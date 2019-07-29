@@ -7,7 +7,7 @@
 module Data.Tapioca.Internal.ByCsvMap where
 
 import Data.Tapioca.Internal.Types.CsvMap
-import Data.Tapioca.Internal.Types.ParseWithCsvMap (parseWithCsvMap)
+import Data.Tapioca.Internal.Types.ParseWithCsvMap (ParseWithCsvMap(..))
 
 import GHC.Generics
 import qualified Data.Csv as C
@@ -18,17 +18,17 @@ import qualified Data.Csv as C
 newtype ByCsvMap a = ByCsvMap { unByCsvMap :: a }
 
 -- | Provides Cassava instances for our records wrapped in ByCsvMap.
-instance CsvMapped r => C.ToRecord (ByCsvMap r) where
-  toRecord (ByCsvMap a) = toRecord a
+instance CsvMapped t r => C.ToRecord (ByCsvMap r) where
+  toRecord (ByCsvMap a) = toRecord @t a
 
-instance CsvMapped r => C.ToNamedRecord (ByCsvMap r) where
-  toNamedRecord (ByCsvMap a) = toNamedRecord a
+instance CsvMapped t r => C.ToNamedRecord (ByCsvMap r) where
+  toNamedRecord (ByCsvMap a) = toNamedRecord @t a
 
-instance CsvMapped r => C.DefaultOrdered (ByCsvMap r) where
-  headerOrder _ = header @r
+instance CsvMapped t r => C.DefaultOrdered (ByCsvMap r) where
+  headerOrder _ = header @t @r
 
-instance CsvMapped r => C.FromRecord (ByCsvMap r) where
-  parseRecord = (ByCsvMap <$>) . parseWithCsvMap
+instance (CsvMapped t r, ParseWithCsvMap t r C.Record) => C.FromRecord (ByCsvMap r) where
+  parseRecord = (ByCsvMap <$>) . parseWithCsvMap @t
 
-instance (CsvMapped r, Generic r) => C.FromNamedRecord (ByCsvMap r) where
-  parseNamedRecord = (ByCsvMap <$>) . parseWithCsvMap
+instance (CsvMapped t r, Generic r, ParseWithCsvMap t r C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
+  parseNamedRecord = (ByCsvMap <$>) . parseWithCsvMap @t

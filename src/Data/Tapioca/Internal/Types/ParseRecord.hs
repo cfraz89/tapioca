@@ -15,8 +15,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Data.Tapioca.Internal.Types.ParseRecord where
@@ -44,9 +42,9 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
                     val = HM.lookup name namedRecord
                     decode :: C.Field -> C.Parser f
                     decode = (_decode _codec <$>) . C.parseField
-            Nest (Field{..} :: Field s r f c) -> parseNest (csvMap @c)
-              where parseNest (CsvMap cm) = _decode _codec . to <$> gParseRecord @_ @c proxy# cm namedRecord
-                    parseNest (CsvEncodeMap _) = fail "Cannot decode to an encode-only map"
+            Nest (Field{..} :: Field s f c r) -> parseNest (csvMap @_ @c)
+              where parseNest :: CsvMap 'Bimap c -> C.Parser f
+                    parseNest (CsvMap (Codec _ decodeRecord) (cm :: m c')) = _decode _codec . decodeRecord . to <$> gParseRecord @_ @c' proxy# cm namedRecord
             Encode name _ -> (fail $ "Cannot decode to a field that has been defined encode only: " <> BC.unpack name)
 
 instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
@@ -56,8 +54,8 @@ instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p
               where errMsg = "Can't parse item at index " <> show idx <> " in row: " <> bsVectorString (V.toList record)
                     decode = (_decode _codec <$>) . C.parseField
                     val = record V.!? idx
-            Nest (Field{..} :: Field s r f c) -> parseNest (csvMap @c)
-              where parseNest (CsvMap cm) = _decode _codec . to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
-                    parseNest (CsvEncodeMap _) = fail "Cannot decode to an encode-only map"
+            Nest (Field{..} :: Field s f c r) -> parseNest (csvMap @_ @c)
+              where parseNest :: CsvMap 'Bimap c -> C.Parser f
+                    parseNest (CsvMap (Codec _ decodeRecord) (cm :: m c')) = _decode _codec . decodeRecord . to <$> gParseRecord @_ @c' proxy# cm (V.drop idx record)
             Encode name _ -> (fail $ "Cannot decode to a field that has been defined encode only: " <> BC.unpack name)
           idx = index @_ @s fieldMapping

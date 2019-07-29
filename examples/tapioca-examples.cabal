@@ -14,10 +14,8 @@ common example
         tapioca,
         bytestring,
         vector,
-        invertible,
         cassava,
-        pretty-simple,
-        lens
+        pretty-simple
 
 executable basic_decode
     import: example
@@ -53,6 +51,11 @@ executable nested_encode
     import: example
     main-is: NestedEncode.hs
     ghc-options: -main-is Data.Tapioca.Examples.NestedEncode
+
+executable newtype
+    import: example
+    main-is: Newtype.hs
+    ghc-options: -main-is Data.Tapioca.Examples.Newtype
 
 executable cassava_compat
     import: example
