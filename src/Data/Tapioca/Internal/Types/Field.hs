@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Data.Tapioca.Internal.Types.Field (Field(..), EncodeField(..), Codec(..), codec, idCodec, encoder, encodeField) where
+module Data.Tapioca.Internal.Types.Field (Field(..), EncodeField(..), Codec(..), codec, idCodec, encoder) where
 
 import GHC.OverloadedLabels
 import GHC.Records
@@ -36,14 +36,11 @@ codec enc' dec' (Field f (Codec enc dec)) = Field f $ Codec (enc' . enc) (dec . 
 instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c r') where
   fromLabel = Field (getField @x) idCodec
 
-newtype EncodeField f r = EncodeField (r -> f)
-
-encodeField :: (r -> f) -> EncodeField f r
-encodeField = EncodeField
+newtype EncodeField (s :: Symbol) f r = EncodeField (r -> f)
 
 -- | Perform a mapping of encoder on this EncodeField
-encoder :: (f -> c) -> EncodeField f r -> EncodeField c r
+encoder :: (f -> c) -> EncodeField s f r -> EncodeField s c r
 encoder fc (EncodeField f) = EncodeField $ fc . f
 
-instance (HasField x r f, r~r', f~f') => IsLabel x (EncodeField f' r') where
+instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (EncodeField x' f' r') where
   fromLabel = EncodeField (getField @x)

@@ -79,12 +79,29 @@ name <-> field  = Bicode name field
 
 infixl 5 <-<
 -- | Create an encode-only mapping from name to field.
-(<-<) :: forall f r. (C.ToField f) => B.ByteString -> EncodeField f r -> FieldMapping "" f r
-name <-< ef  = Encode @f name ef
+(<-<) :: forall s f r. (C.ToField f) => B.ByteString -> EncodeField s f r -> FieldMapping s f r
+name <-< ef  = Encode @s @f name ef
+
+-- Maybe this will work with parameterised fieldmappings
+class CsvMapped t c => Nestable t s f c r where
+  type NestField t s f c r
+  nest :: NestField t s f c r -> FieldMapping s f r
 
 -- | Nest the record at this field into the mapping at this point.
-nest :: forall s r f c. (CsvMapped 'Bimap c, Generic c) => Field s f c r -> FieldMapping s f r
-nest = Nest
+instance forall s r f c. (CsvMapped 'Bimap c, Generic c) => Nestable 'Bimap s f c r where
+  type NestField 'Bimap s f c r = Field s f c r
+  nest = Nest
+
+instance forall s r f c. (f ~ c, CsvMapped 'EncodeMap f) => Nestable 'EncodeMap s f c r where
+  type NestField 'EncodeMap s f c r = EncodeField s f r
+  nest = NestEncode
+
+-- | Nest the record at this field into the mapping at this point.
+-- nest :: forall s r f c. (CsvMapped 'Bimap c, Generic c) => Field s f c r -> FieldMapping s f r
+-- nest = Nest
+
+-- nestEncode :: forall s r f. (CsvMapped 'EncodeMap f) => EncodeField s f r -> FieldMapping s f r
+-- nestEncode = NestEncode
 
 with :: forall s f c r m. (CsvDecode c m, CsvEncode c m) => Field s f c r -> m c -> FieldMapping s f r
 with f = With f . mkCsvMap @'Bimap
@@ -98,8 +115,9 @@ with f = With f . mkCsvMap @'Bimap
 --   * 'nest' to nest the record at this field
 data FieldMapping (s :: Symbol) f r where
   Bicode :: forall s f c r. (C.FromField c, C.ToField c) => B.ByteString -> Field s f c r -> FieldMapping s f r
-  Encode :: C.ToField f => B.ByteString -> EncodeField f r -> FieldMapping "" f r
+  Encode :: forall s f r. C.ToField f => B.ByteString -> EncodeField s f r -> FieldMapping s f r
   Nest :: forall s f c r. (CsvMapped 'Bimap c, Generic c) => Field s f c r -> FieldMapping s f r
+  NestEncode :: forall s f r. CsvMapped 'EncodeMap f => EncodeField s f r -> FieldMapping s f r
   With :: forall s f c r. Field s f c r -> CsvMap 'Bimap c -> FieldMapping s f r
 
 -- | Match instance
@@ -124,6 +142,7 @@ instance HFoldVal (FieldMapping s f r) (r -> C.Record) where
     Bicode _ (Field field (Codec enc _)) -> V.singleton . C.toField . enc . field
     Encode _ (EncodeField e) -> V.singleton . C.toField . e
     Nest (Field field (Codec enc _)) -> toRecord (csvMap @'Bimap) . enc . field
+    NestEncode (EncodeField enc) -> toRecord (csvMap @'EncodeMap) . enc
     With (Field field (Codec enc _)) (cm :: CsvMap 'Bimap c) -> toRecord cm . enc . field
 
 instance HFoldVal (FieldMapping s f r) (r -> C.NamedRecord) where
@@ -131,6 +150,7 @@ instance HFoldVal (FieldMapping s f r) (r -> C.NamedRecord) where
     Bicode name (Field field (Codec enc _)) -> HM.singleton name . C.toField . enc . field
     Encode name (EncodeField e) -> HM.singleton name . C.toField . e
     Nest (Field field (Codec enc _)) -> toNamedRecord (csvMap @'Bimap) . enc . field
+    NestEncode (EncodeField enc) -> toNamedRecord (csvMap @'EncodeMap) . enc
     With (Field field (Codec enc _)) (cm :: CsvMap 'Bimap c) -> toNamedRecord cm . enc . field
 
 -- | Generate a header entry for this mapping
@@ -139,9 +159,11 @@ instance HFoldVal (FieldMapping s f r) C.Header where
     Bicode name _ -> pure name
     Encode name _ -> pure name
     Nest (_ :: Field s f c r) -> hFoldOf (csvMap @_ @c)
+    NestEncode (_ :: EncodeField s f r) -> hFoldOf (csvMap @_ @f)
     With (_ :: Field s f c r) cm -> hFoldOf cm
-    where hFoldOf :: CsvMap 'Bimap c -> C.Header
+    where hFoldOf :: CsvMap t c -> C.Header
           hFoldOf (CsvMap m) = foldHeader m
+          hFoldOf (CsvEncodeMap m) = foldHeader m
 
 foldHeader :: HFoldable m C.Header => m -> C.Header
 foldHeader = hFoldMap @_ @C.Header id
@@ -154,9 +176,11 @@ instance Width (FieldMapping s f) r where
     Bicode _ _ -> 1
     Encode _ _ -> 0 -- Not relevant for encoding
     Nest (_ :: Field s f c r) -> widthOf (csvMap @_ @c)
+    NestEncode (_ :: EncodeField s f r) -> 0
     With _ cm -> widthOf cm
-    where widthOf :: CsvMap 'Bimap c -> Int
+    where widthOf :: CsvMap t c -> Int
           widthOf (CsvMap mapping) = width mapping
+          widthOf (CsvEncodeMap _) = 0 -- not relevant
 
 -- Encoding
 -- | Return a vector of all headers specified by our csv map in order. Nested maps will have their headers spliced inline.

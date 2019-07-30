@@ -48,7 +48,7 @@ module Data.Tapioca
   , CsvMapped(..)
   , ByCsvMap(..)
   , DecodeIndexing(..)
-  , FieldMapping
+  , FieldMapping(..)
   , Field
   , EncodeField
   , Codec(..)
@@ -62,7 +62,6 @@ module Data.Tapioca
   , header
   , codec
   , encoder
-  , encodeField
   , toRecord
   , toNamedRecord
   , mkCsvMap

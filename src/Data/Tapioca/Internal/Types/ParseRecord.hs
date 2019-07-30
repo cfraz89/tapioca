@@ -27,6 +27,7 @@ import Data.Tapioca.Internal.Common (bsVectorString)
 
 import GHC.Exts
 import GHC.Generics
+import GHC.TypeLits
 
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Csv as C
@@ -34,7 +35,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
 import Data.Semigroup ((<>))
 
-instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
+instance (Reduce t s r f, KnownSymbol s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
             Bicode name Field{..} -> maybe (fail errMsg) decode val
@@ -43,12 +44,13 @@ instance Reduce t s r f => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 
                     decode :: C.Field -> C.Parser f
                     decode = (_decode _codec <$>) . C.parseField
             Nest (Field{..} :: Field s f c r) -> parseNest (csvMap @_ @c) (_decode _codec)
+            NestEncode _ -> fail $ "Cannot nest an encode field while decoding field:" <> symbolVal' @s proxy#
             With (Field{..} :: Field s f c r) cm -> parseNest cm (_decode _codec)
             Encode name _ -> (fail $ "Cannot decode to a field that has been defined encode only: " <> BC.unpack name)
           parseNest :: forall c. CsvMap 'Bimap c -> (c -> f) -> C.Parser f
           parseNest (CsvMap cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm namedRecord
 
-instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
+instance (Reduce t s r f, Index t s, KnownSymbol s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @r @f fieldMapping of
             Bicode _ Field{..} -> maybe (fail errMsg) decode val
@@ -56,6 +58,7 @@ instance (Reduce t s r f, Index t s) => GParseRecord (M1 S ('MetaSel ('Just s) p
                     decode = (_decode _codec <$>) . C.parseField
                     val = record V.!? idx
             Nest (Field{..} :: Field s f c r) -> parseNest (csvMap @_ @c) (_decode _codec)
+            NestEncode _ -> fail $ "Cannot nest an encode field while decoding field:" <> symbolVal' @s proxy#
             With(Field{..} :: Field s f c r) cm -> parseNest cm (_decode _codec)
             Encode name _ -> (fail $ "Cannot decode to a field that has been defined encode only: " <> BC.unpack name)
           parseNest :: forall c. CsvMap 'Bimap c -> (c -> f) -> C.Parser f
