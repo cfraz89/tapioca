@@ -103,8 +103,21 @@ instance forall s r f c. (f ~ c, CsvMapped 'EncodeMap f) => Nestable 'EncodeMap 
 -- nestEncode :: forall s r f. (CsvMapped 'EncodeMap f) => EncodeField s f r -> FieldMapping s f r
 -- nestEncode = NestEncode
 
-with :: forall s f c r m. (CsvDecode c m, CsvEncode c m) => Field s f c r -> m c -> FieldMapping s f r
-with f = With f . mkCsvMap @'Bimap
+class Withable (t :: CsvMapType) m s f c r where
+  type WithField t m s f c r
+  with :: WithField t m s f c r -> m c -> FieldMapping s f r
+
+-- | Nest the record at this field into the mapping at this point.
+instance (CsvDecode c m, CsvEncode c m) => Withable 'Bimap m s f c r where
+  type WithField 'Bimap m s f c r = Field s f c r
+  with f = With f . mkCsvMap @'Bimap
+
+instance (f ~ c, CsvEncode c m) => Withable 'EncodeMap m s f c r where
+  type WithField 'EncodeMap m s f c r = EncodeField s f r
+  with f = WithEncode f . mkCsvMap
+
+-- with :: forall s f c r m. (CsvDecode c m, CsvEncode c m) => Field s f c r -> m c -> FieldMapping s f r
+-- with f = With f . mkCsvMap @'Bimap
 
 -- | A mapping for a single field in our record.
 -- A `CsvMap` is a chain of FieldMappings joined with `:|`
@@ -119,6 +132,7 @@ data FieldMapping (s :: Symbol) f r where
   Nest :: forall s f c r. (CsvMapped 'Bimap c, Generic c) => Field s f c r -> FieldMapping s f r
   NestEncode :: forall s f r. CsvMapped 'EncodeMap f => EncodeField s f r -> FieldMapping s f r
   With :: forall s f c r. Field s f c r -> CsvMap 'Bimap c -> FieldMapping s f r
+  WithEncode :: forall s f r. EncodeField s f r -> CsvMap 'EncodeMap f -> FieldMapping s f r
 
 -- | Match instance
 type instance Match (FieldMapping s f) s' = EqSymbol s s'
@@ -144,6 +158,7 @@ instance HFoldVal (FieldMapping s f r) (r -> C.Record) where
     Nest (Field field (Codec enc _)) -> toRecord (csvMap @'Bimap) . enc . field
     NestEncode (EncodeField enc) -> toRecord (csvMap @'EncodeMap) . enc
     With (Field field (Codec enc _)) (cm :: CsvMap 'Bimap c) -> toRecord cm . enc . field
+    WithEncode (EncodeField enc) (cm :: CsvMap 'EncodeMap c) -> toRecord cm . enc
 
 instance HFoldVal (FieldMapping s f r) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
@@ -152,6 +167,7 @@ instance HFoldVal (FieldMapping s f r) (r -> C.NamedRecord) where
     Nest (Field field (Codec enc _)) -> toNamedRecord (csvMap @'Bimap) . enc . field
     NestEncode (EncodeField enc) -> toNamedRecord (csvMap @'EncodeMap) . enc
     With (Field field (Codec enc _)) (cm :: CsvMap 'Bimap c) -> toNamedRecord cm . enc . field
+    WithEncode (EncodeField enc) (cm :: CsvMap 'EncodeMap c) -> toNamedRecord cm . enc
 
 -- | Generate a header entry for this mapping
 instance HFoldVal (FieldMapping s f r) C.Header where
@@ -161,6 +177,7 @@ instance HFoldVal (FieldMapping s f r) C.Header where
     Nest (_ :: Field s f c r) -> hFoldOf (csvMap @_ @c)
     NestEncode (_ :: EncodeField s f r) -> hFoldOf (csvMap @_ @f)
     With (_ :: Field s f c r) cm -> hFoldOf cm
+    WithEncode (_ :: EncodeField s f r) cm -> hFoldOf cm
     where hFoldOf :: CsvMap t c -> C.Header
           hFoldOf (CsvMap m) = foldHeader m
           hFoldOf (CsvEncodeMap m) = foldHeader m
@@ -178,6 +195,7 @@ instance Width (FieldMapping s f) r where
     Nest (_ :: Field s f c r) -> widthOf (csvMap @_ @c)
     NestEncode (_ :: EncodeField s f r) -> 0
     With _ cm -> widthOf cm
+    WithEncode _ _ -> 0
     where widthOf :: CsvMap t c -> Int
           widthOf (CsvMap mapping) = width mapping
           widthOf (CsvEncodeMap _) = 0 -- not relevant
