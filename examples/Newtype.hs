@@ -23,7 +23,7 @@ newtype RecordWrapper = RecordWrapper { unRecordWrapper :: BasicRecord }
   deriving (Show, Generic)
 
 instance CsvMapped 'Both RecordWrapper where
- csvMap = mkCsvMap . with @'Both #unRecordWrapper
+ csvMap = mkCsvMap . with #unRecordWrapper
     $ "Sample Field 1" <-> #field1
    :| "Sample Field 3" <-> #field3
    :| "Sample Field 2" <-> #field2

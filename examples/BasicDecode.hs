@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | Demonstration of basic use of Tapioca to decode a csv
 module Data.Tapioca.Examples.BasicDecode where
@@ -17,8 +19,8 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped BasicRecord where
- csvMap = CsvMap
+instance CsvMapped 'Both BasicRecord where
+ csvMap = mkCsvMap
     $ "Sample Field 1" <-> #field1
    :| "Sample Field 3" <-> #field3
    :| "Sample Field 2" <-> #field2

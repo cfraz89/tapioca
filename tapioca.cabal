@@ -32,6 +32,7 @@ library
                    Data.Tapioca.Internal.Types.Field,
                    Data.Tapioca.Internal.Types.ColSep,
                    Data.Tapioca.Internal.Types.CsvMap,
+		   Data.Tapioca.Internal.Types.CsvMapType,
                    Data.Tapioca.Internal.Types.GParseRecord,
                    Data.Tapioca.Internal.Types.HFoldable,
                    Data.Tapioca.Internal.Types.Index,

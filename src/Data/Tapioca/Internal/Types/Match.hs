@@ -12,7 +12,7 @@ import GHC.TypeLits
 import Data.Kind
 
 -- | Type family to determine whether an arbitrary selector matches that of our mapping
-type family Match (t :: Type -> Type) (s :: Symbol) :: Bool
+type family Match (t :: Type) (s :: Symbol) :: Bool
 
 type family OrdBool (o :: Ordering) :: Bool where
   OrdBool 'LT = 'False

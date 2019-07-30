@@ -18,11 +18,11 @@ data BasicRecord = BasicRecord
   deriving (Show)
 
 instance CsvMapped 'Encode BasicRecord where
- csvMap = CsvEncode
+ csvMap = mkCsvMap
     $ "Sample Field 1" <-< #field1
    :| "Computed From Field 2" <-< encoder (++ " plus more") #field2
    :| "Sample Field 3" <-> #field3 -- The bidirectional combinator can still be used
-   :| "Arbitrary Field" <-< encodeField (const @String "Any data")
+   :| "Arbitrary Field" <-< encodeConst @String "Any data"
 
 
 main :: IO ()

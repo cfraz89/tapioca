@@ -23,7 +23,7 @@ import qualified Data.ByteString.Char8 as BC
 import Control.Error.Util
 import qualified Data.Csv as C
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
-import Data.Tapioca.Internal.Types.CsvMap
+import Data.Tapioca.Internal.Types.CsvMapType
 
 infixl 1 ?!
 (?!) :: Maybe a -> b -> Either b a

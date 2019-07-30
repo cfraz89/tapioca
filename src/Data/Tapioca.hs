@@ -62,6 +62,7 @@ module Data.Tapioca
   , header
   , codec
   , encoder
+  , encodeConst
   , toRecord
   , toNamedRecord
   , mkCsvMap
@@ -78,6 +79,7 @@ import Data.Tapioca.Internal.Common
 import Data.Tapioca.Internal.Types.Field
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
 import Data.Tapioca.Internal.Types.ParseRecord()
+import Data.Tapioca.Internal.Types.CsvMapType
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB

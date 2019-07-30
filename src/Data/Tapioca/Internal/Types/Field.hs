@@ -9,13 +9,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Data.Tapioca.Internal.Types.Field (Field(..), EncodeField(..), Codec(..), codec, idCodec, encoder) where
+module Data.Tapioca.Internal.Types.Field (Field(..), EncodeField(..), Codec(..), codec, idCodec, encoder, encodeConst) where
 
 import GHC.OverloadedLabels
 import GHC.Records
 import GHC.TypeLits
 
-data Codec f a = Codec { _encode :: (f -> a), _decode :: (a -> f) }
+data Codec f a = Codec { _encode :: f -> a, _decode :: a -> f }
 
 idCodec :: Codec f f
 idCodec = Codec id id
@@ -44,3 +44,6 @@ encoder fc (EncodeField f) = EncodeField $ fc . f
 
 instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (EncodeField x' f' r') where
   fromLabel = EncodeField (getField @x)
+
+encodeConst :: f -> EncodeField "" f r
+encodeConst = EncodeField . const

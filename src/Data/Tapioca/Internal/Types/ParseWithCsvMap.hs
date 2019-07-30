@@ -14,6 +14,7 @@ module Data.Tapioca.Internal.Types.ParseWithCsvMap where
 
 import Data.Tapioca.Internal.Types.CsvMap
 import Data.Tapioca.Internal.Types.GParseRecord
+import Data.Tapioca.Internal.Types.CsvMapType
 
 import GHC.Exts
 import GHC.Generics
