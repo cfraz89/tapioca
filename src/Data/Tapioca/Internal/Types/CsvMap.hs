@@ -86,8 +86,8 @@ name <-< ef  = Encode @f name ef
 nest :: forall s r f c. (CsvMapped 'Bimap c, Generic c) => Field s f c r -> FieldMapping s f r
 nest = Nest
 
-with :: forall s f c r. Field s f c r -> CsvMap 'Bimap c -> FieldMapping s f r
-with = With
+with :: forall s f c r m. (CsvDecode c m, CsvEncode c m) => Field s f c r -> m c -> FieldMapping s f r
+with f = With f . mkCsvMap @'Bimap
 
 -- | A mapping for a single field in our record.
 -- A `CsvMap` is a chain of FieldMappings joined with `:|`
