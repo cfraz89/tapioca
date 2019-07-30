@@ -56,6 +56,7 @@ module Data.Tapioca
   , (<->)
   , (<-<)
   , nest
+  , with
   , encode
   , decode
   , header
@@ -65,9 +66,6 @@ module Data.Tapioca
   , toRecord
   , toNamedRecord
   , mkCsvMap
-  , mkCsvEncodeMap
-  , mappingCodec
-  , mappingEncoder
   , C.HasHeader(..)
   , CsvMapType(..)
   ) where
@@ -136,9 +134,9 @@ import qualified Data.Vector as V
 -- | Encode a list of items using our mapping
 encode :: forall r (t :: CsvMapType). CsvMapped t r => C.HasHeader -> [r] -> BL.ByteString
 encode hasHeader items = BB.toLazyByteString $
-  hdr <> mconcat (CB.encodeRecord . toRecord @t <$> items)
+  hdr <> mconcat (CB.encodeRecord . toRecord (csvMap @t) <$> items)
   where hdr = case hasHeader of
-          C.HasHeader -> CB.encodeHeader (header @t @r)
+          C.HasHeader -> CB.encodeHeader $ header (csvMap @t @r)
           C.NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left

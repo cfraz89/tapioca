@@ -19,13 +19,13 @@ newtype ByCsvMap a = ByCsvMap { unByCsvMap :: a }
 
 -- | Provides Cassava instances for our records wrapped in ByCsvMap.
 instance CsvMapped t r => C.ToRecord (ByCsvMap r) where
-  toRecord (ByCsvMap a) = toRecord @t a
+  toRecord (ByCsvMap a) = toRecord (csvMap @t) a
 
 instance CsvMapped t r => C.ToNamedRecord (ByCsvMap r) where
-  toNamedRecord (ByCsvMap a) = toNamedRecord @t a
+  toNamedRecord (ByCsvMap a) = toNamedRecord (csvMap @t) a
 
 instance CsvMapped t r => C.DefaultOrdered (ByCsvMap r) where
-  headerOrder _ = header @t @r
+  headerOrder _ = header (csvMap @t @r)
 
 instance (CsvMapped t r, ParseWithCsvMap t r C.Record) => C.FromRecord (ByCsvMap r) where
   parseRecord = (ByCsvMap <$>) . parseWithCsvMap @t

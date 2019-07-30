@@ -15,7 +15,7 @@ import GHC.Exts
 import GHC.Generics
 
 type GenericCsvDecode r t i = (GParseRecord (Rep r) r t i, Generic r)
-  
+
 -- | Generic creation of record from CsvMap
 -- f :: Generic representation
 -- r :: record type we are parsing to

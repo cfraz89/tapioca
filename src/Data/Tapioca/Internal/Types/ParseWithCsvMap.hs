@@ -14,7 +14,6 @@ module Data.Tapioca.Internal.Types.ParseWithCsvMap where
 
 import Data.Tapioca.Internal.Types.CsvMap
 import Data.Tapioca.Internal.Types.GParseRecord
-import Data.Tapioca.Internal.Types.Field
 
 import GHC.Exts
 import GHC.Generics
@@ -27,9 +26,9 @@ class ParseWithCsvMap (m :: CsvMapType) r t where
 instance Generic r => ParseWithCsvMap 'Bimap r C.NamedRecord where
   parseWithCsvMap namedRecord = parseFrom (csvMap @_ @r)
     where parseFrom :: CsvMap 'Bimap r -> C.Parser r
-          parseFrom (CsvMap (Codec _ decode) (m :: m r')) = decode . to <$> gParseRecord @(Rep r') @r' proxy# m namedRecord
+          parseFrom (CsvMap m) = to <$> gParseRecord @(Rep r) @r proxy# m namedRecord
 
 instance ParseWithCsvMap 'Bimap r C.Record where
   parseWithCsvMap record = parseFrom (csvMap @_ @r)
     where parseFrom :: CsvMap 'Bimap r -> C.Parser r
-          parseFrom (CsvMap (Codec _ decode) (m :: m r')) = decode . to <$> gParseRecord @(Rep r') @r' proxy# m record
+          parseFrom (CsvMap m) = to <$> gParseRecord @(Rep r) @r proxy# m record

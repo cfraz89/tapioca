@@ -23,7 +23,7 @@ newtype RecordWrapper = RecordWrapper { unRecordWrapper :: BasicRecord }
   deriving (Show, Generic)
 
 instance CsvMapped 'Bimap RecordWrapper where
- csvMap = mappingCodec unRecordWrapper RecordWrapper . mkCsvMap
+ csvMap = mkCsvMap . with #unRecordWrapper . mkCsvMap
     $ "Sample Field 1" <-> #field1
    :| "Sample Field 3" <-> #field3
    :| "Sample Field 2" <-> #field2
