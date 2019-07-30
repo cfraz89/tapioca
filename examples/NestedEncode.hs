@@ -19,7 +19,7 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped 'Bimap BasicRecord where
+instance CsvMapped 'Both BasicRecord where
  csvMap = CsvMap
     $ "Sample Field 1" <-> #field1
    :| "Sample Field 3" <-> #field3
@@ -32,9 +32,9 @@ data NestingRecord = NestingRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped 'Bimap NestingRecord where
+instance CsvMapped 'Both NestingRecord where
   csvMap = mkCsvMap
-     $ nest @'Bimap #nested
+     $ nest @'Both #nested
     :| "Other" <-> #someOtherData
     :| "Data" <-> #someData
 

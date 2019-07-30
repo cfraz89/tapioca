@@ -17,8 +17,8 @@ data BasicRecord = BasicRecord
   }
   deriving (Show)
 
-instance CsvMapped 'EncodeMap BasicRecord where
- csvMap = CsvEncodeMap
+instance CsvMapped 'Encode BasicRecord where
+ csvMap = CsvEncode
     $ "Sample Field 1" <-< #field1
    :| "Computed From Field 2" <-< encoder (++ " plus more") #field2
    :| "Sample Field 3" <-> #field3 -- The bidirectional combinator can still be used

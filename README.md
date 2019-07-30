@@ -81,11 +81,11 @@ instance CsvMapped MyRecord where
 ```
 
 ### Encode-only mappings
-Encode-only mappings are more flexible than bidrectional mappings, as there is no concern for parsing a csv back into the record. They are created with the `CsvEncodeMap` constructor, and the |-> combinator to map headers to fields:
+Encode-only mappings are more flexible than bidrectional mappings, as there is no concern for parsing a csv back into the record. They are created with the `CsvEncode` constructor, and the |-> combinator to map headers to fields:
 
 ```haskell
 instance CsvMapped BasicRecord where
- csvMap = CsvEncodeMap
+ csvMap = CsvEncode
     $ "Header for Field 1" <- #field1
    :| "Header for Field 2" <- #field2
 ```
@@ -97,7 +97,7 @@ If you wish to map an encode-only field, use `encoder` together with an encoding
 
 ```haskell
 instance CsvMapped MyRecord where
-  csvMap = CsvEncodeMap
+  csvMap = CsvEncode
     $ "Header for Field 1" <-> #field1 `codec` (toOrdinal, fromOrdinal)
    :| "Header for Field 2" <- #field2 `encoder` toOrdinal
 

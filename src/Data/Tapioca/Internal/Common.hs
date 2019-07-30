@@ -39,7 +39,7 @@ bsVectorString = BC.unpack . BC.intercalate ","
 -- | The method via which to attempt decoding of the record
 data DecodeIndexing r t where
   -- | Use the csv's header row to match against our field mappings. This is the primary use case.
-  DecodeNamed :: ParseWithCsvMap 'Bimap r C.NamedRecord => DecodeIndexing r C.NamedRecord
+  DecodeNamed :: ParseWithCsvMap 'Both r C.NamedRecord => DecodeIndexing r C.NamedRecord
   -- | Attempt to read the csv in the same order as our mapping has been defined.
   -- If HasHeader is set, the first row (header row) will be skipped.
-  DecodeOrdered :: ParseWithCsvMap 'Bimap r C.Record => C.HasHeader -> DecodeIndexing r C.Record
+  DecodeOrdered :: ParseWithCsvMap 'Both r C.Record => C.HasHeader -> DecodeIndexing r C.Record
