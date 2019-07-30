@@ -64,7 +64,7 @@ module Data.Tapioca
   , encodeField
   , toRecord
   , toNamedRecord
-  , mkCsvMap 
+  , mkCsvMap
   , mkCsvEncodeMap
   , mappingCodec
   , mappingEncoder
@@ -134,25 +134,25 @@ import qualified Data.Vector as V
 
 
 -- | Encode a list of items using our mapping
-encode :: forall (t :: CsvMapType) r. CsvMapped t r => CsvMap t r -> C.HasHeader -> [r] -> BL.ByteString
-encode _ hasHeader items = BB.toLazyByteString $
+encode :: forall r (t :: CsvMapType). CsvMapped t r => C.HasHeader -> [r] -> BL.ByteString
+encode hasHeader items = BB.toLazyByteString $
   hdr <> mconcat (CB.encodeRecord . toRecord @t <$> items)
   where hdr = case hasHeader of
           C.HasHeader -> CB.encodeHeader (header @t @r)
           C.NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r t. (CsvMapped 'Bimap r, Generic r) => CsvMap 'Bimap r -> DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
-decode csm indexing csv = C.runParser $ do
-   records <- parseCsv csm indexing csv
+decode :: forall r m t. (CsvMapped m r, Generic r, ParseWithCsvMap m r C.NamedRecord, ParseWithCsvMap m r C.Record) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
+decode indexing csv = C.runParser $ do
+   records <- parseCsv indexing csv
    let parse = case indexing of
-         DecodeNamed -> parseWithCsvMap @'Bimap
-         DecodeOrdered _ -> parseWithCsvMap @'Bimap
+         DecodeNamed -> parseWithCsvMap @m
+         DecodeOrdered _ -> parseWithCsvMap @m
    traverse parse records
 
 -- Parse the required data from the csv file
-parseCsv :: forall m r t. CsvMapped m r => CsvMap m r -> DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
-parseCsv _ indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
+parseCsv :: forall m r t. CsvMapped m r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
+parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
     DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
     DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions

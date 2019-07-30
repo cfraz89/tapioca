@@ -12,6 +12,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Data.Tapioca.Internal.Types.CsvMap where
 
@@ -34,7 +35,7 @@ import GHC.TypeLits
 data CsvMapType = Bimap | EncodeMap
 
 -- | This is the core type class of tapioca. Implement it in your types to support easy encoding to CSV
-class CsvMapped (t :: CsvMapType) r' where
+class CsvMapped (t :: CsvMapType) r' | r' -> t where
   csvMap :: CsvMap (t :: CsvMapType) r'
 
 type CsvDecode r (m :: Type -> Type) =
@@ -131,7 +132,7 @@ instance HFoldVal (FieldMapping s f r) C.Header where
           hFoldOf (CsvMap _ m) = foldHeader m
 
 foldHeader :: HFoldable m C.Header => m -> C.Header
-foldHeader = hFoldMap @_ @C.Header id 
+foldHeader = hFoldMap @_ @C.Header id
 
 instance Index (FieldMapping s f r) s where
   index _ = 0

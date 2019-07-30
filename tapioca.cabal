@@ -51,7 +51,6 @@ library
         unordered-containers >= 0.2.9 && < 0.3,
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
-        lens                 >= 4.17 && < 4.18
 
 test-suite tapioca-tests
     type:       exitcode-stdio-1.0

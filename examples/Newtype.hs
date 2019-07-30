@@ -31,9 +31,6 @@ instance CsvMapped 'Bimap RecordWrapper where
 
 main :: IO ()
 main = pPrint $
-  encode (csvMap @'Bimap) HasHeader [ RecordWrapper $ BasicRecord 1 "This is field 2" (Just 3)
-                   , RecordWrapper $ BasicRecord 2 "This is field 2 again" (Just 6)
-                   ]
-  -- decode @RecordWrapper DecodeNamed
-  --    $ "Sample Field 1,Sample Field 2,Sample Field 3\r\n"
-  --   <> "12,testField,9"
+  decode @RecordWrapper DecodeNamed
+     $ "Sample Field 1,Sample Field 2,Sample Field 3\r\n"
+    <> "12,testField,9"
