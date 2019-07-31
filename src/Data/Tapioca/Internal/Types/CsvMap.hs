@@ -38,29 +38,29 @@ import GHC.TypeLits
 class CsvMapped (t :: CsvMapType) r' | r' -> t where
   csvMap :: CsvMap (t :: CsvMapType) r'
 
-type CsvDecode r (m :: Type -> Type) =
-  ( GenericCsvDecode r (m r) C.NamedRecord
-  , GenericCsvDecode r (m r) C.Record
-  , Width (m r)
+type CsvDecode r m =
+  ( GenericCsvDecode r m C.NamedRecord
+  , GenericCsvDecode r m C.Record
+  , Width m
   )
 
-type CsvEncode r (m :: Type -> Type) =
-  ( HFoldable (m r) (r -> C.NamedRecord)
-  , HFoldable (m r) (r -> C.Record)
-  , HFoldable (m r) C.Header -- To List headers
+type CsvEncode r m =
+  ( HFoldable m (r -> C.NamedRecord)
+  , HFoldable m (r -> C.Record)
+  , HFoldable m C.Header -- To List headers
   )
 
 data CsvMap (t :: CsvMapType) r where
-  CsvMap :: forall m r . (CsvDecode r m, CsvEncode r m) => m r -> CsvMap 'Both r
-  CsvEncode :: forall m r. (CsvEncode r m) => m r -> CsvMap 'Encode r
+  CsvMap :: forall m r . (CsvDecode r (m 'Both r), CsvEncode r (m 'Both r)) => m 'Both r -> CsvMap 'Both r
+  CsvEncode :: forall m r. (CsvEncode r (m 'Encode r)) => m 'Encode r -> CsvMap 'Encode r
 
 class MakeCsvMap (t :: CsvMapType) r m where
-  mkCsvMap :: m r -> CsvMap t r
+  mkCsvMap :: m t r -> CsvMap t r
 
-instance (CsvDecode r m, CsvEncode r m) => MakeCsvMap 'Both r m where
+instance (CsvDecode r (m 'Both r), CsvEncode r (m 'Both r)) => MakeCsvMap 'Both r m where
   mkCsvMap = CsvMap
 
-instance CsvEncode r m => MakeCsvMap 'Encode r m where
+instance CsvEncode r (m 'Encode r) => MakeCsvMap 'Encode r m where
   mkCsvMap = CsvEncode
 
 -- -- We can't compose codecs since we can't change the type of m (easily)
@@ -105,14 +105,14 @@ instance forall s r f c. (f ~ c, CsvMapped 'Encode f) => Nestable s f c 'Encode 
 
 class Withable m s f c (t :: CsvMapType) r where
   type WithField m s f c t r
-  with :: WithField m s f c t r -> m c -> FieldMapping s f t r
+  with :: WithField m s f c t r -> m t c -> FieldMapping s f t r
 
 -- | Nest the record at this field into the mapping at this point.
-instance (CsvDecode c m, CsvEncode c m) => Withable m s f c 'Both r where
+instance (CsvDecode c (m 'Both c), CsvEncode c (m 'Both c)) => Withable m s f c 'Both r where
   type WithField m s f c 'Both r = Field s f c r
   with f = With f . mkCsvMap @'Both
 
-instance (f ~ c, CsvEncode c m) => Withable m s f c 'Encode r where
+instance (f ~ c, CsvEncode c (m 'Encode c)) => Withable m s f c 'Encode r where
   type WithField m s f c 'Encode r = EncodeField s f r
   with f = WithEncode f . mkCsvMap
 
