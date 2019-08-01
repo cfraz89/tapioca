@@ -50,7 +50,6 @@ module Data.Tapioca
   , DecodeIndexing(..)
   , FieldMapping(..)
   , Field
-  , EncodeField
   , Codec(..)
   , (:|)(..)
   , (<->)
@@ -62,7 +61,7 @@ module Data.Tapioca
   , header
   , codec
   , encoder
-  , encodeConst
+  , field
   , toRecord
   , toNamedRecord
   , mkCsvMap

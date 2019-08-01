@@ -8,12 +8,15 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE GADTs #-}
 
-module Data.Tapioca.Internal.Types.Field (Field(..), EncodeField(..), Codec(..), codec, idCodec, encoder, encodeConst) where
+module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, field) where
 
 import GHC.OverloadedLabels
 import GHC.Records
 import GHC.TypeLits
+
+import Data.Tapioca.Internal.Types.CsvMapType
 
 data Codec f a = Codec { _encode :: f -> a, _decode :: a -> f }
 
@@ -24,26 +27,25 @@ idCodec = Codec id id
 -- r - Record type
 -- f - field type with record
 -- c - type to encode and decode as
-data Field (s :: Symbol) f c r = Field
-  { _field :: r -> f
-  , _codec :: Codec f c
-  }
+data Field (s :: Symbol) f c (t :: CsvMapType) r where
+  Field :: (r -> f) -> Codec f c -> Field s f c 'Both r
+  EncodeField :: (r -> f) -> Field s f f 'Encode r
 
 -- | Perform a bidirectional mapping on this field with the given 'Codec'
-codec :: (c -> c') -> (c' -> c) -> Field s f c r -> Field s f c' r
+codec :: (c -> c') -> (c' -> c) -> Field s f c 'Both r -> Field s f c' 'Both r
 codec enc' dec' (Field f (Codec enc dec)) = Field f $ Codec (enc' . enc) (dec . dec')
 
-instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c r') where
+instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c 'Both r') where
   fromLabel = Field (getField @x) idCodec
 
-newtype EncodeField (s :: Symbol) f r = EncodeField (r -> f)
 
 -- | Perform a mapping of encoder on this EncodeField
-encoder :: (f -> c) -> EncodeField s f r -> EncodeField s c r
+encoder :: (f -> f') -> Field s f f 'Encode r -> Field s f' f' 'Encode r
 encoder fc (EncodeField f) = EncodeField $ fc . f
 
-instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (EncodeField x' f' r') where
+instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' f' 'Encode r') where
   fromLabel = EncodeField (getField @x)
 
-encodeConst :: f -> EncodeField "" f r
-encodeConst = EncodeField . const
+-- Arbitrary encoding field
+field :: (r -> f) -> Field s f f 'Encode r
+field = EncodeField
