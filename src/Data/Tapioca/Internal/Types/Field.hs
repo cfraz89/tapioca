@@ -10,7 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
 
-module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, field) where
+module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, by, (>.)) where
 
 import GHC.OverloadedLabels
 import GHC.Records
@@ -47,5 +47,9 @@ instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' f' 'Encode
   fromLabel = EncodeField (getField @x)
 
 -- Arbitrary encoding field
-field :: (r -> f) -> Field s f f 'Encode r
-field = EncodeField
+by :: (r -> f) -> Field s f f 'Encode r
+by = EncodeField
+
+infixl 6 >.
+(>.) :: Field s f f 'Encode r -> Field s' f' f' 'Encode f -> Field s' f' f' 'Encode r
+(EncodeField l) >. (EncodeField r) = EncodeField (r . l)

@@ -22,7 +22,7 @@ instance CsvMapped 'Encode BasicRecord where
     $ "Sample Field 1" <-< #field1
    :| "Computed From Field 2" <-< encoder (++ " plus more") #field2
    :| "Sample Field 3" <-> #field3 -- The bidirectional combinator can still be used
-   :| "Arbitrary Field" <-< encodeConst @String "Any data"
+   :| "Arbitrary Field" <-< by (const @String "Any data")
 
 
 main :: IO ()
