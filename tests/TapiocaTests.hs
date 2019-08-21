@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Main where
 
@@ -115,7 +117,7 @@ data BasicRecord = BasicRecord
   , field3 :: Float
   } deriving (Generic, Eq, Show)
 
-instance CsvMapped BasicRecord where
+instance CsvMapped 'Both BasicRecord where
   csvMap = CsvMap
     $ "Column 1" <-> #field1
    :| "Column 2" <-> #field2
@@ -128,7 +130,7 @@ data NestingRecord = NestingRecord
   , nField3 :: Float
   } deriving (Generic, Eq, Show)
 
-instance CsvMapped NestingRecord where
+instance CsvMapped 'Both NestingRecord where
   csvMap = CsvMap
     $ "SomeInfo 1" <-> #nField1
    :| "SomeInfo 2" <-> #nField2
