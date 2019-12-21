@@ -32,7 +32,7 @@ library
                    Data.Tapioca.Internal.Types.Field,
                    Data.Tapioca.Internal.Types.ColSep,
                    Data.Tapioca.Internal.Types.CsvMap,
-		   Data.Tapioca.Internal.Types.CsvMapType,
+                   Data.Tapioca.Internal.Types.Capability,
                    Data.Tapioca.Internal.Types.GParseRecord,
                    Data.Tapioca.Internal.Types.HFoldable,
                    Data.Tapioca.Internal.Types.Index,
@@ -52,6 +52,7 @@ library
         unordered-containers >= 0.2.9 && < 0.3,
         vector               >= 0.12.0 && < 0.13,
         errors               >= 2.3.0 && < 2.4,
+        string-conv          >= 0.1 && < 0.2
 
 test-suite tapioca-tests
     type:       exitcode-stdio-1.0

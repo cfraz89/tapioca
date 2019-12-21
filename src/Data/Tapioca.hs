@@ -52,8 +52,7 @@ module Data.Tapioca
   , Field
   , Codec(..)
   , (:|)(..)
-  , (<->)
-  , (<-<)
+  , (.->)
   , nest
   , with
   , encode
@@ -67,7 +66,9 @@ module Data.Tapioca
   , toNamedRecord
   , mkCsvMap
   , C.HasHeader(..)
-  , CsvMapType(..)
+  , Encode
+  , Decode
+  , EncodeDecode
   ) where
 
 import GHC.Generics
@@ -79,7 +80,7 @@ import Data.Tapioca.Internal.Common
 import Data.Tapioca.Internal.Types.Field
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
 import Data.Tapioca.Internal.Types.ParseRecord()
-import Data.Tapioca.Internal.Types.CsvMapType
+import Data.Tapioca.Internal.Types.Capability
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
@@ -133,24 +134,26 @@ import qualified Data.Vector as V
 
 
 -- | Encode a list of items using our mapping
-encode :: forall r (t :: CsvMapType). CsvMapped t r => C.HasHeader -> [r] -> BL.ByteString
+encode :: forall r cs. CsvMapped cs r => C.HasHeader -> [r] -> BL.ByteString
 encode hasHeader items = BB.toLazyByteString $
-  hdr <> mconcat (CB.encodeRecord . toRecord (csvMap @t) <$> items)
+  hdr <> mconcat (CB.encodeRecord . toRecord (csvMap @cs) <$> items)
   where hdr = case hasHeader of
-          C.HasHeader -> CB.encodeHeader $ header (csvMap @t @r)
+          C.HasHeader -> CB.encodeHeader $ header (csvMap @cs @r)
           C.NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r m t. (CsvMapped m r, Generic r, ParseWithCsvMap m r C.NamedRecord, ParseWithCsvMap m r C.Record) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
+decode :: forall r cs t. (CsvMapped cs r, Generic r, ParseWithCsvMap cs r C.NamedRecord, ParseWithCsvMap cs r C.Record) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
 decode indexing csv = C.runParser $ do
    records <- parseCsv indexing csv
    let parse = case indexing of
-         DecodeNamed -> parseWithCsvMap @m
-         DecodeOrdered _ -> parseWithCsvMap @m
+         DecodeNamed -> parseWithCsvMap @cs
+         DecodeOrdered _ -> parseWithCsvMap @cs
+
+-- | Decode a CSV String. If there is an error parsion, error messa
    traverse parse records
 
 -- Parse the required data from the csv file
-parseCsv :: forall m r t. CsvMapped m r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
+parseCsv :: forall cs r t. CsvMapped cs r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
 parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
     DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions

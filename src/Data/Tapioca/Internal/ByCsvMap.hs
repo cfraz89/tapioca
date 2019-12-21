@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE MonoLocalBinds #-}
 
 module Data.Tapioca.Internal.ByCsvMap where
 
@@ -27,8 +28,8 @@ instance CsvMapped t r => C.ToNamedRecord (ByCsvMap r) where
 instance CsvMapped t r => C.DefaultOrdered (ByCsvMap r) where
   headerOrder _ = header (csvMap @t @r)
 
-instance (CsvMapped t r, ParseWithCsvMap t r C.Record) => C.FromRecord (ByCsvMap r) where
-  parseRecord = (ByCsvMap <$>) . parseWithCsvMap @t
+instance (ParseWithCsvMap cs r C.Record) => C.FromRecord (ByCsvMap r) where
+  parseRecord = (ByCsvMap <$>) . parseWithCsvMap @cs
 
-instance (CsvMapped t r, Generic r, ParseWithCsvMap t r C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
-  parseNamedRecord = (ByCsvMap <$>) . parseWithCsvMap @t
+instance (Generic r, ParseWithCsvMap cs r C.NamedRecord) => C.FromNamedRecord (ByCsvMap r) where
+  parseNamedRecord = (ByCsvMap <$>) . parseWithCsvMap @cs

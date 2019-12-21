@@ -18,11 +18,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped BasicRecord where
+instance CsvMapped 'Decode BasicRecord where
  csvMap = CsvMap
-    $ "Sample Field 1" <-> #field1
-   :| "Sample Field 3" <-> #field3
-   :| "Sample Field 2" <-> #field2
+    $ "Sample Field 1" .-> #field1
+   :| "Sample Field 3" .-> #field3
+   :| "Sample Field 2" .-> #field2
 
 
 main :: IO ()

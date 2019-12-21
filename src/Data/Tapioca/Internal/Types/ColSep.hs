@@ -18,13 +18,13 @@ import GHC.TypeLits
 import Data.Tapioca.Internal.Types.Index
 import Data.Tapioca.Internal.Types.Match
 import Data.Tapioca.Internal.Types.HFoldable
-import Data.Tapioca.Internal.Types.CsvMapType
+import Data.Tapioca.Internal.Types.Capability
 
 -- Our joining/induction type for records
 infixl 1 :|
 
 -- | Joins together FieldMappings to create a CsvMap
-data (a :| b) (t :: CsvMapType) r = a t r :| b t r
+data (a :| b) (t :: [Capability]) r = a t r :| b t r
 
 -- data Cols r xs where
 --   (:$) :: Cols r '[]

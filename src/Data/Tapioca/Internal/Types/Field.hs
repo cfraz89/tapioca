@@ -16,7 +16,7 @@ import GHC.OverloadedLabels
 import GHC.Records
 import GHC.TypeLits
 
-import Data.Tapioca.Internal.Types.CsvMapType
+import Data.Tapioca.Internal.Types.Capability
 
 data Codec f a = Codec { _encode :: f -> a, _decode :: a -> f }
 
@@ -27,29 +27,29 @@ idCodec = Codec id id
 -- r - Record type
 -- f - field type with record
 -- c - type to encode and decode as
-data Field (s :: Symbol) f c (t :: CsvMapType) r where
-  Field :: (r -> f) -> Codec f c -> Field s f c 'Both r
-  EncodeField :: (r -> f) -> Field s f f 'Encode r
+data Field (s :: Symbol) f c (cs :: [Capability]) r where
+  Field :: (r -> f) -> Codec f c -> Field s f c EncodeDecode r
+  EncodeField :: (r -> f) -> Field s f f Encode r
 
 -- | Perform a bidirectional mapping on this field with the given 'Codec'
-codec :: (c -> c') -> (c' -> c) -> Field s f c 'Both r -> Field s f c' 'Both r
+codec :: (c -> c') -> (c' -> c) -> Field s f c EncodeDecode r -> Field s f c' EncodeDecode r
 codec enc' dec' (Field f (Codec enc dec)) = Field f $ Codec (enc' . enc) (dec . dec')
 
-instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c 'Both r') where
+instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c EncodeDecode r') where
   fromLabel = Field (getField @x) idCodec
 
 
 -- | Perform a mapping of encoder on this EncodeField
-encoder :: (f -> f') -> Field s f f 'Encode r -> Field s f' f' 'Encode r
+encoder :: (f -> f') -> Field s f f Encode r -> Field s f' f' Encode r
 encoder fc (EncodeField f) = EncodeField $ fc . f
 
-instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' f' 'Encode r') where
+instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' f' Encode r') where
   fromLabel = EncodeField (getField @x)
 
 -- Arbitrary encoding field
-by :: (r -> f) -> Field s f f 'Encode r
+by :: (r -> f) -> Field s f f Encode r
 by = EncodeField
 
 infixl 6 >.
-(>.) :: Field s f f 'Encode r -> Field s' f' f' 'Encode f -> Field s' f' f' 'Encode r
+(>.) :: Field s f f Encode r -> Field s' f' f' Encode f -> Field s' f' f' Encode r
 (EncodeField l) >. (EncodeField r) = EncodeField (r . l)
