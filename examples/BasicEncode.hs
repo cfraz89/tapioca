@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | Encoding of a basic map
 module Data.Tapioca.Examples.BasicEncode where
@@ -16,11 +18,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped BasicRecord where
- csvMap = CsvMap
-    $ "Sample Field 1" <-> #field1
-   :| "Sample Field 3" <-> #field3
-   :| "Sample Field 2" <-> #field2
+instance CsvMapped Encode BasicRecord where
+ csvMap = mkCsvMap
+    $ "Sample Field 1" .-> #field1
+   :| "Sample Field 3" .-> #field3
+   :| "Sample Field 2" .-> #field2
 
 
 main :: IO ()

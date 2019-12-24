@@ -30,6 +30,7 @@ idCodec = Codec id id
 data Field (s :: Symbol) f c (cs :: [Capability]) r where
   Field :: (r -> f) -> Codec f c -> Field s f c EncodeDecode r
   EncodeField :: (r -> f) -> Field s f f Encode r
+  DecodeField :: (c -> f) -> Field s f c Decode r 
 
 -- | Perform a bidirectional mapping on this field with the given 'Codec'
 codec :: (c -> c') -> (c' -> c) -> Field s f c EncodeDecode r -> Field s f c' EncodeDecode r
@@ -53,3 +54,6 @@ by = EncodeField
 infixl 6 >.
 (>.) :: Field s f f Encode r -> Field s' f' f' Encode f -> Field s' f' f' Encode r
 (EncodeField l) >. (EncodeField r) = EncodeField (r . l)
+
+instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c Decode r') where
+  fromLabel = DecodeField id

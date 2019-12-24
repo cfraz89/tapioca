@@ -20,7 +20,7 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped EncodeDecode BasicRecord where
+instance CsvMapped Decode BasicRecord where
  csvMap = mkCsvMap
     $ "Sample Field 1" .-> #field1
    :| "Sample Field 3" .-> #field3

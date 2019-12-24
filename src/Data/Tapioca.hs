@@ -134,7 +134,7 @@ import qualified Data.Vector as V
 
 
 -- | Encode a list of items using our mapping
-encode :: forall r cs. CsvMapped cs r => C.HasHeader -> [r] -> BL.ByteString
+encode :: forall r cs. (CsvMapped cs r, Can 'Encode cs) => C.HasHeader -> [r] -> BL.ByteString
 encode hasHeader items = BB.toLazyByteString $
   hdr <> mconcat (CB.encodeRecord . toRecord (csvMap @cs) <$> items)
   where hdr = case hasHeader of
@@ -142,7 +142,7 @@ encode hasHeader items = BB.toLazyByteString $
           C.NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
-decode :: forall r cs t. (CsvMapped cs r, Generic r, ParseWithCsvMap cs r C.NamedRecord, ParseWithCsvMap cs r C.Record) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
+decode :: forall r cs t. (CsvMapped cs r, Can 'Decode cs, Generic r, ParseWithCsvMap cs r C.NamedRecord, ParseWithCsvMap cs r C.Record) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
 decode indexing csv = C.runParser $ do
    records <- parseCsv indexing csv
    let parse = case indexing of
@@ -153,7 +153,7 @@ decode indexing csv = C.runParser $ do
    traverse parse records
 
 -- Parse the required data from the csv file
-parseCsv :: forall cs r t. CsvMapped cs r => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
+parseCsv :: forall r cs t. (CsvMapped cs r, Can 'Decode cs) => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
 parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
     DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions

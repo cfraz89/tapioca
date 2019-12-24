@@ -30,6 +30,7 @@ import GHC.Exts
 import GHC.Generics
 import GHC.TypeLits
 
+import Data.ByteString (ByteString)
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
@@ -40,18 +41,22 @@ import Data.String.Conv
 instance (Can 'Decode cs, Reduce t s f cs r, KnownSymbol s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @f @cs @r fieldMapping of
-            BicodeFM name (Field _ _codec) -> maybe (fail errMsg) decode val
-              where errMsg = "No column " <> toS name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
-                    val = HM.lookup (toS name) namedRecord
-                    decode :: C.Field -> C.Parser f
-                    decode = (_decode _codec <$>) . C.parseField
+            BicodeFM name (Field _ _codec) -> decodeWith name (_decode _codec)
+            DecodeFM name (DecodeField decoder) -> decodeWith name decoder
             Nest (Field _ _codec :: Field s f c EncodeDecode r) -> parseNest (csvMap @_ @c) (_decode _codec)
             With (Field _ _codec :: Field s f c EncodeDecode r) cm -> parseNest cm (_decode _codec)
             EncodeFM _ _ -> notDecodeError
             NestEncode _ -> notDecodeError
             WithEncode _ _ -> notDecodeError
-          parseNest :: forall c cs'. CsvMap cs' c -> (c -> f) -> C.Parser f
+          decodeWith :: C.FromField c => ByteString -> (c -> f) -> C.Parser f
+          decodeWith name decoder = maybe (fail errMsg) decode val
+              where errMsg = "No column " <> toS name <> " in columns: " <> bsVectorString (HM.keys namedRecord)
+                    val = HM.lookup (toS name) namedRecord
+                    decode :: C.Field -> C.Parser f
+                    decode f = decoder <$> C.parseField f
+          parseNest :: forall c cs'. Can 'Decode cs => CsvMap cs' c -> (c -> f) -> C.Parser f
           parseNest (CsvMap cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm namedRecord
+          parseNest (CsvDecode cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm namedRecord
           parseNest (CsvEncode _) _ = notDecodeError
           selector = symbolVal @s undefined
           notDecodeError :: C.Parser f
@@ -60,17 +65,22 @@ instance (Can 'Decode cs, Reduce t s f cs r, KnownSymbol s) => GParseRecord (M1 
 instance (Can 'Decode cs, Reduce t s f cs r, Index t s, KnownSymbol s) => GParseRecord (M1 S ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @s @f @cs @r fieldMapping of
-            BicodeFM _ (Field _ _codec) -> maybe (fail errMsg) decode val
-              where errMsg = "Can't parse item at index " <> show idx <> " in row: " <> bsVectorString (V.toList record)
-                    decode = (_decode _codec <$>) . C.parseField
-                    val = record V.!? idx
+            BicodeFM _ (Field _ _codec) -> decodeWith (_decode _codec)
+            DecodeFM _ (DecodeField decoder) -> decodeWith decoder
             Nest (Field _ _codec :: Field s f c EncodeDecode r) -> parseNest (csvMap @_ @c) (_decode _codec)
             With (Field _ _codec :: Field s f c EncodeDecode r) cm -> parseNest cm (_decode _codec)
             EncodeFM _ _ -> notDecodeError
             NestEncode _ -> notDecodeError
             WithEncode _ _ -> notDecodeError
+          decodeWith :: C.FromField c => (c -> f) -> C.Parser f
+          decodeWith decoder = maybe (fail errMsg) decode val
+              where errMsg = "Can't parse item at index " <> show idx <> " in row: " <> bsVectorString (V.toList record)
+                    val = record V.!? idx
+                    decode :: C.Field -> C.Parser f
+                    decode f = decoder <$> C.parseField f
           parseNest :: forall c cs'. CsvMap cs' c -> (c -> f) -> C.Parser f
           parseNest (CsvMap cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
+          parseNest (CsvDecode cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
           parseNest (CsvEncode _) _ = notDecodeError
           idx = index @_ @s fieldMapping
           selector = symbolVal @s undefined

@@ -28,10 +28,12 @@ instance (CsvMapped cs r, Can 'Decode cs, Generic r) => ParseWithCsvMap cs r C.N
   parseWithCsvMap namedRecord = parseFrom (csvMap @_ @r)
     where parseFrom :: CsvMap cs r -> C.Parser r
           parseFrom (CsvMap m) = to <$> gParseRecord @(Rep r) @r proxy# m namedRecord
+          parseFrom (CsvDecode m) = to <$> gParseRecord @(Rep r) @r proxy# m namedRecord
           parseFrom (CsvEncode _) = undefined -- Should never match due to type constraints
 
 instance (CsvMapped cs r, Can 'Decode cs) => ParseWithCsvMap cs r C.Record where
   parseWithCsvMap record = parseFrom (csvMap @_ @r)
     where parseFrom :: CsvMap cs r -> C.Parser r
           parseFrom (CsvMap m) = to <$> gParseRecord @(Rep r) @r proxy# m record
+          parseFrom (CsvDecode m) = to <$> gParseRecord @(Rep r) @r proxy# m record
           parseFrom (CsvEncode _) = undefined -- Should never match due to type constraints
