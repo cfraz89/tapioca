@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Demonstration of how records are nested on encoding
 module Data.Tapioca.Examples.NestedEncode where
@@ -19,11 +20,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped 'Both BasicRecord where
- csvMap = CsvMap
-    $ "Sample Field 1" <-> #field1
-   :| "Sample Field 3" <-> #field3
-   :| "Sample Field 2" <-> #field2
+instance CsvMapped EncodeDecode BasicRecord where
+ csvMap = mkCsvMap
+    $ "Sample Field 1" .-> #field1
+   :| "Sample Field 3" .-> #field3
+   :| "Sample Field 2" .-> #field2
 
 data NestingRecord = NestingRecord
   { someData :: String
@@ -32,11 +33,11 @@ data NestingRecord = NestingRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped 'Both NestingRecord where
+instance CsvMapped EncodeDecode NestingRecord where
   csvMap = mkCsvMap
-     $ nest @'Both #nested
-    :| "Other" <-> #someOtherData
-    :| "Data" <-> #someData
+     $ nest #nested
+    :| "Other" .-> #someOtherData
+    :| "Data" .-> #someData
 
 main :: IO ()
 main = pPrint $ encode HasHeader

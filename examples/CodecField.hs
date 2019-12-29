@@ -3,6 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Demonstration of providing a custom codec to a field
 module Data.Tapioca.Examples.CodecField where
@@ -19,11 +21,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped BasicRecord where
+instance CsvMapped EncodeDecode BasicRecord where
  csvMap = CsvMap
-    $ "Sample Field 1" <-> #field1 `codec` (asOrdinal, fromOrdinal)
-   :| "Sample Field 3" <-> #field3
-   :| "Sample Field 2" <-> #field2
+    $ "Sample Field 1" .-> codec asOrdinal fromOrdinal #field1
+   :| "Sample Field 3" .-> #field3
+   :| "Sample Field 2" .-> #field2
 
 asOrdinal :: Int -> String
 asOrdinal = \case

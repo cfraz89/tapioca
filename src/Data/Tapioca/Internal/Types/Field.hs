@@ -39,7 +39,6 @@ codec enc' dec' (Field f (Codec enc dec)) = Field f $ Codec (enc' . enc) (dec . 
 instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c EncodeDecode r') where
   fromLabel = Field (getField @x) idCodec
 
-
 -- | Perform a mapping of encoder on this EncodeField
 encoder :: (f -> f') -> Field s f f Encode r -> Field s f' f' Encode r
 encoder fc (EncodeField f) = EncodeField $ fc . f

@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Encoding an encode-only map
 module Data.Tapioca.Examples.EncodeOnly where
@@ -17,12 +18,12 @@ data BasicRecord = BasicRecord
   }
   deriving (Show)
 
-instance CsvMapped 'Encode BasicRecord where
+instance CsvMapped Encode BasicRecord where
  csvMap = mkCsvMap
-    $ "Sample Field 1" <-< #field1
-   :| "Computed From Field 2" <-< encoder (++ " plus more") #field2
-   :| "Sample Field 3" <-> #field3 -- The bidirectional combinator can still be used
-   :| "Arbitrary Field" <-< by (const @String "Any data")
+    $ "Sample Field 1" .-> #field1
+   :| "Computed From Field 2" .-> encoder (++ " plus more") #field2
+   :| "Sample Field 3" .-> #field3 
+   :| "Arbitrary Field" .-> by (const @String "Any data")
 
 
 main :: IO ()

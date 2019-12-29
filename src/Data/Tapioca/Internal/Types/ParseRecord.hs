@@ -44,6 +44,7 @@ instance (Can 'Decode cs, Reduce t s f cs r, KnownSymbol s) => GParseRecord (M1 
             BicodeFM name (Field _ _codec) -> decodeWith name (_decode _codec)
             DecodeFM name (DecodeField decoder) -> decodeWith name decoder
             Nest (Field _ _codec :: Field s f c EncodeDecode r) -> parseNest (csvMap @_ @c) (_decode _codec)
+            NestDecode (DecodeField decoder :: Field s f c Decode r) -> parseNest (csvMap @_ @c) decoder
             With (Field _ _codec :: Field s f c EncodeDecode r) cm -> parseNest cm (_decode _codec)
             EncodeFM _ _ -> notDecodeError
             NestEncode _ -> notDecodeError
@@ -68,6 +69,7 @@ instance (Can 'Decode cs, Reduce t s f cs r, Index t s, KnownSymbol s) => GParse
             BicodeFM _ (Field _ _codec) -> decodeWith (_decode _codec)
             DecodeFM _ (DecodeField decoder) -> decodeWith decoder
             Nest (Field _ _codec :: Field s f c EncodeDecode r) -> parseNest (csvMap @_ @c) (_decode _codec)
+            NestDecode (DecodeField decoder :: Field s f c Decode r) -> parseNest (csvMap @_ @c) decoder
             With (Field _ _codec :: Field s f c EncodeDecode r) cm -> parseNest cm (_decode _codec)
             EncodeFM _ _ -> notDecodeError
             NestEncode _ -> notDecodeError

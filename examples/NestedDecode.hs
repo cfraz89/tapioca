@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Demonstrating how nesting records are treated on decoding
 module Data.Tapioca.Examples.NestedDecode where
@@ -18,11 +20,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped BasicRecord where
- csvMap = CsvMap
-    $ "Sample Field 1" <-> #field1
-   :| "Sample Field 3" <-> #field3
-   :| "Sample Field 2" <-> #field2
+instance CsvMapped Decode BasicRecord where
+ csvMap = mkCsvMap
+    $ "Sample Field 1" .-> #field1
+   :| "Sample Field 3" .-> #field3
+   :| "Sample Field 2" .-> #field2
 
 data NestingRecord = NestingRecord
   { someData :: String
@@ -31,11 +33,11 @@ data NestingRecord = NestingRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped NestingRecord where
-  csvMap = CsvMap
+instance CsvMapped Decode NestingRecord where
+  csvMap = mkCsvMap
      $ nest #nested
-    :| "Other" <-> #someOtherData
-    :| "Data" <-> #someData
+    :| "Other" .-> #someOtherData
+    :| "Data" .-> #someData
 
 main :: IO ()
 main = pPrint $

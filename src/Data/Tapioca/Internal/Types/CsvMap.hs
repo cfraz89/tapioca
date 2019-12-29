@@ -102,12 +102,8 @@ instance forall s r f c. (CsvMapped EncodeDecode c, Generic c) => Nestable s f c
 instance forall s r f c. (f ~ c, CsvMapped Encode f) => Nestable s f c Encode r where
   nest = NestEncode
 
--- | Nest the record at this field into the mapping at this point.
--- nest :: forall s r f c. (CsvMapped EncodeDecode c, Generic c) => Field s f c r -> FieldMapping s f r
--- nest = Nest
-
--- nestEncode :: forall s r f. (CsvMapped Encode f) => EncodeField s f r -> FieldMapping s f r
--- nestEncode = NestEncode
+instance forall s r f c. (f ~ c, CsvMapped Decode f) => Nestable s f c Decode r where
+  nest = NestDecode
 
 class Withable m s f c (t :: [Capability]) r where
   with :: Field s f c t r -> m t c -> FieldMapping s f t r
@@ -135,6 +131,7 @@ data FieldMapping (s :: Symbol) f (t :: [Capability]) r where
   DecodeFM :: forall s f r. C.FromField f => B.ByteString -> Field s f f Decode r -> FieldMapping s f Decode r
   Nest :: forall s f c t r. (CsvMapped EncodeDecode c, Generic c) => Field s f c EncodeDecode r -> FieldMapping s f t r
   NestEncode :: forall s f r. CsvMapped Encode f => Field s f f Encode r -> FieldMapping s f Encode r
+  NestDecode :: forall s f r. CsvMapped Decode f => Field s f f Decode r -> FieldMapping s f Decode r
   With :: forall s f c t r. Field s f c EncodeDecode r -> CsvMap EncodeDecode c -> FieldMapping s f t r
   WithEncode :: forall s f r. Field s f f Encode r -> CsvMap Encode f -> FieldMapping s f Encode r
 
@@ -162,6 +159,7 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.Record) wher
     DecodeFM _ _ -> error "Decode field not foldable"
     Nest (Field get (Codec enc _)) -> toRecord (csvMap @EncodeDecode) . enc . get
     NestEncode (EncodeField enc) -> toRecord (csvMap @Encode) . enc
+    NestDecode _ -> error "Nest decode not foldable"
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toRecord cm . enc
 
@@ -172,6 +170,7 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.NamedRecord)
     DecodeFM _ _ -> error "Decode field not foldable"
     Nest (Field get (Codec enc _)) -> toNamedRecord (csvMap @EncodeDecode) . enc . get
     NestEncode (EncodeField enc) -> toNamedRecord (csvMap @Encode) . enc
+    NestDecode _ -> error "Nest decode not foldable"
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toNamedRecord cm . enc
 
@@ -194,6 +193,7 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) C.Header where
     DecodeFM _ _ -> error "Not providing header for decode mapping"
     Nest (_ :: Field s f c EncodeDecode r) -> hFoldOf (csvMap @_ @c)
     NestEncode (_ :: Field s f f Encode r) -> hFoldOf (csvMap @_ @f)
+    NestDecode _ -> error "Not providing header for decode nest mapping"
     With (_ :: Field s f c EncodeDecode r) cm -> hFoldOf cm
     WithEncode (_ :: Field s f f Encode r) cm -> hFoldOf cm
 
@@ -210,27 +210,30 @@ instance Can 'Decode cs => Width (FieldMapping s f cs r) where
     EncodeFM _ _ -> error "No width required for encode fields"
     Nest (_ :: Field s f c EncodeDecode r) -> widthOf (csvMap @_ @c)
     NestEncode _ -> error "No width required for encode fields"
+    NestDecode (_ :: Field s f c Decode r) -> widthOf (csvMap @_ @c)
     With _ cm -> widthOf cm
     WithEncode _ _ -> error "No width required for encode fields"
-    where widthOf :: CsvMap EncodeDecode c -> Int
+    where widthOf :: CsvMap cs' c -> Int
           widthOf (CsvMap mapping) = width mapping
+          widthOf (CsvDecode mapping) = width mapping
+          widthOf (CsvEncode _) = error "No width required for encode mapping"
 
 -- Encoding
 -- | Return a vector of all headers specified by our csv map in order. Nested maps will have their headers spliced inline.
 -- Similar to cassava's headerOrder function.
-header :: forall cs r. Can 'Encode cs => CsvMap cs r -> C.Header
+header :: forall r cs. Can 'Encode cs => CsvMap cs r -> C.Header
 header (CsvMap mapping) = foldHeader mapping
 header (CsvEncode mapping) = foldHeader mapping
 header (CsvDecode _) = error "Not providing header for decode mapping"
 
 -- | Encode a single record to a cassava 'Record' by ordering.
-toRecord :: forall cs r. Can 'Encode cs => CsvMap cs r -> r -> C.Record
+toRecord :: forall r cs. Can 'Encode cs => CsvMap cs r -> r -> C.Record
 toRecord (CsvMap mapping) record = foldRecord record mapping
 toRecord (CsvEncode mapping) record = foldRecord record mapping
 toRecord (CsvDecode _) _ = error "Cannot encode a decode mapping"
 
 -- | Encode a single record to a cassava 'NamedRecord'.
-toNamedRecord :: forall cs r. Can 'Encode cs => CsvMap cs r -> r -> C.NamedRecord
+toNamedRecord :: forall r cs. Can 'Encode cs => CsvMap cs r -> r -> C.NamedRecord
 toNamedRecord (CsvMap mapping) record = foldRecord record mapping
 toNamedRecord (CsvEncode mapping) record = foldRecord record mapping
 toNamedRecord (CsvDecode _) _ = error "Cannot encode a decode mapping"

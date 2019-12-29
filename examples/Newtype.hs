@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- | Demonstration of basic use of Tapioca to decode a csv
 module Data.Tapioca.Examples.Newtype where
@@ -22,11 +23,12 @@ data BasicRecord = BasicRecord
 newtype RecordWrapper = RecordWrapper { unRecordWrapper :: BasicRecord }
   deriving (Show, Generic)
 
-instance CsvMapped 'Both RecordWrapper where
- csvMap = mkCsvMap . with #unRecordWrapper
-    $ "Sample Field 1" <-> #field1
-   :| "Sample Field 3" <-> #field3
-   :| "Sample Field 2" <-> #field2
+instance CsvMapped EncodeDecode RecordWrapper where
+  csvMap = mkCsvMap $
+    with #unRecordWrapper
+       $ "Sample Field 1" .-> #field1
+      :| "Sample Field 3" .-> #field3
+      :| "Sample Field 2" .-> #field2
 
 
 main :: IO ()

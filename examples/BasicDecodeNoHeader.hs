@@ -2,6 +2,10 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 
 -- | A demonstration that Fields are interpreted in
 -- the order of the mapping if the header row does not exist
@@ -18,8 +22,8 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped 'Decode BasicRecord where
- csvMap = CsvMap
+instance CsvMapped Decode BasicRecord where
+ csvMap = mkCsvMap
     $ "Sample Field 1" .-> #field1
    :| "Sample Field 3" .-> #field3
    :| "Sample Field 2" .-> #field2
