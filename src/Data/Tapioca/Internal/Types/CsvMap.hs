@@ -110,21 +110,22 @@ class Withable m s f c (t :: [Capability]) r where
 
 -- | Nest the record at this field into the mapping at this point.
 instance (CsvDecodeReqs c (m EncodeDecode c), CsvEncodeReqs c (m EncodeDecode c)) => Withable m s f c EncodeDecode r where
-  with f = With f . mkCsvMap @EncodeDecode
+  with f = With f . mkCsvMap
 
 instance (f ~ c, CsvEncodeReqs c (m Encode c)) => Withable m s f c Encode r where
   with f = WithEncode f . mkCsvMap
 
--- with :: forall s f c r m. (CsvDecode c m, CsvEncode c m) => Field s f c r -> m c -> FieldMapping s f r
--- with f = With f . mkCsvMap @EncodeDecode
+instance (f ~ c, CsvDecodeReqs c (m Decode c)) => Withable m s f c Decode r where
+  with f = WithDecode f . mkCsvMap
 
 -- | A mapping for a single field in our record.
 -- A `CsvMap` is a chain of FieldMappings joined with `:|`
 --
 -- Can be created with:
 --
---   * '<->' to map a single field
---   * 'nest' to nest the record at this field
+--   * '.->' to map a single field
+--   * 'nest' to nest into this field the mapping of the field's type
+--   * 'with' to nest into this field a given mapping
 data FieldMapping (s :: Symbol) f (t :: [Capability]) r where
   BicodeFM :: forall s f c t r. (C.FromField c, C.ToField c) => B.ByteString -> Field s f c EncodeDecode r -> FieldMapping s f t r -- Any t allowed for bicoding
   EncodeFM :: forall s f r. C.ToField f => B.ByteString -> Field s f f Encode r -> FieldMapping s f Encode r
@@ -134,6 +135,7 @@ data FieldMapping (s :: Symbol) f (t :: [Capability]) r where
   NestDecode :: forall s f r. CsvMapped Decode f => Field s f f Decode r -> FieldMapping s f Decode r
   With :: forall s f c t r. Field s f c EncodeDecode r -> CsvMap EncodeDecode c -> FieldMapping s f t r
   WithEncode :: forall s f r. Field s f f Encode r -> CsvMap Encode f -> FieldMapping s f Encode r
+  WithDecode :: forall s f r. Field s f f Decode r -> CsvMap Decode f -> FieldMapping s f Decode r
 
 -- | Match instance
 type instance Match (FieldMapping s f t r) s' = EqSymbol s s'
@@ -162,6 +164,7 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.Record) wher
     NestDecode _ -> error "Nest decode not foldable"
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toRecord cm . enc
+    WithDecode _ _ -> error "Decode 'with' not foldable"
 
 instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
@@ -173,6 +176,7 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.NamedRecord)
     NestDecode _ -> error "Nest decode not foldable"
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toNamedRecord cm . enc
+    WithDecode _ _ -> error "Decode 'with' not foldable"
 
 hFoldOf :: Can 'Encode cs => CsvMap cs r -> C.Header
 hFoldOf (CsvMap m) = foldHeader m
@@ -196,6 +200,7 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) C.Header where
     NestDecode _ -> error "Not providing header for decode nest mapping"
     With (_ :: Field s f c EncodeDecode r) cm -> hFoldOf cm
     WithEncode (_ :: Field s f f Encode r) cm -> hFoldOf cm
+    WithDecode _ _ -> error "Not providing header for decode with mapping"
 
 foldHeader :: HFoldable m C.Header => m -> C.Header
 foldHeader = hFoldMap @_ @C.Header id
@@ -213,6 +218,7 @@ instance Can 'Decode cs => Width (FieldMapping s f cs r) where
     NestDecode (_ :: Field s f c Decode r) -> widthOf (csvMap @_ @c)
     With _ cm -> widthOf cm
     WithEncode _ _ -> error "No width required for encode fields"
+    WithDecode _ cm -> widthOf cm
     where widthOf :: CsvMap cs' c -> Int
           widthOf (CsvMap mapping) = width mapping
           widthOf (CsvDecode mapping) = width mapping
