@@ -61,3 +61,13 @@ executable cassava_compat
     import: example
     main-is: CassavaCompat.hs
     ghc-options: -main-is Data.Tapioca.Examples.CassavaCompat
+
+executable decode_with
+    import: example
+    main-is: DecodeWith.hs
+    ghc-options: -main-is Data.Tapioca.Examples.DecodeWith
+
+executable encode_with
+    import: example
+    main-is: EncodeWith.hs
+    ghc-options: -main-is Data.Tapioca.Examples.EncodeWith

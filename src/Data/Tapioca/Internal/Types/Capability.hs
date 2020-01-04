@@ -37,6 +37,7 @@ type family Has c cs where
 
 type family EnsureCan c cs t :: Constraint where
   EnsureCan c cs 'True = ()
-  EnsureCan c cs 'False = TypeError ('Text "No capability " ':<>: 'ShowType c ':<>: 'Text " in " ':<>: 'ShowType cs)
+  EnsureCan c cs 'False = TypeError ('Text "No capability " ':<>: 'ShowType c 
+                                    ':<>: 'Text " in type's capabilities" ':<>: 'ShowType cs)
 
 instance EnsureCan c cs (Has c cs) => Can c cs

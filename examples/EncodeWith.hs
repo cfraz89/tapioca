@@ -7,7 +7,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 -- | Demonstration of basic use of Tapioca to decode a csv
-module Data.Tapioca.Examples.With where
+module Data.Tapioca.Examples.EncodeWith where
 
 import GHC.Generics
 import Data.Tapioca
@@ -20,16 +20,22 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped Decode (BasicRecord, BasicRecord) where
-  csvMap = mkCsvMap $
-    with #unRecordWrapper
-       $ "Sample Field 1" .-> #field1
-      :| "Sample Field 3" .-> #field3
-      :| "Sample Field 2" .-> #field2
+data BasicPair = BasicPair { record0 :: BasicRecord, record1 :: BasicRecord }
+  deriving (Show, Generic)
 
+instance CsvMapped Encode BasicPair where
+  csvMap = mkCsvMap $
+    with #record0
+       ( "Sample Field 1" .-> #field1
+      :| "Sample Field 2" .-> #field2
+      :| "Sample Field 3" .-> #field3
+       )
+    :| with #record1
+       ( "Sample Field 4" .-> #field1
+      :| "Sample Field 5" .-> #field2
+      :| "Sample Field 6" .-> #field3
+       )
 
 main :: IO ()
 main = pPrint $
-  decode @RecordWrapper DecodeNamed
-     $ "Sample Field 1,Sample Field 2,Sample Field 3\r\n"
-    <> "12,testField,9"
+  encode HasHeader [BasicPair (BasicRecord 12 "testField" (Just 9)) (BasicRecord 3 "test Again" (Just 7))]

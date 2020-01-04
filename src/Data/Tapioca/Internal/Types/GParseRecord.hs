@@ -24,10 +24,10 @@ type GenericCsvDecode r t i = (GParseRecord (Rep r) r t i, Generic r)
 class GParseRecord (f :: Type -> Type) r t i where
   gParseRecord :: Proxy# r -> t -> i -> C.Parser (f p)
 
-instance GParseRecord f r t i => GParseRecord (M1 D x f) r t i where
+instance GParseRecord f r t i => GParseRecord (D1 x f) r t i where
   gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
-instance GParseRecord f r t i => GParseRecord (M1 C x f) r t i where
+instance GParseRecord f r t i => GParseRecord (C1 x f) r t i where
   gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
 instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where

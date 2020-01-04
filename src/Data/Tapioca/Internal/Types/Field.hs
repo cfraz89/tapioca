@@ -10,7 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
 
-module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, by, (>.)) where
+module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, by, (>.), decoder) where
 
 import GHC.OverloadedLabels
 import GHC.Records
@@ -56,3 +56,7 @@ infixl 6 >.
 
 instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c Decode r') where
   fromLabel = DecodeField id
+
+-- | Perform a mapping of decoder on this EncodeField
+decoder :: (c' -> c) -> Field s f c Decode r -> Field s f c' Decode r
+decoder fc (DecodeField f) = DecodeField $ f . fc

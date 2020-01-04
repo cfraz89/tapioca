@@ -62,6 +62,7 @@ module Data.Tapioca
   , encoder
   , by
   , (>.)
+  , decoder
   , toRecord
   , toNamedRecord
   , mkCsvMap
