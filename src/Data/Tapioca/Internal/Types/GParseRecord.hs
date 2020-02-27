@@ -27,7 +27,8 @@ class GParseRecord (f :: Type -> Type) r t i where
 instance GParseRecord f r t i => GParseRecord (D1 x f) r t i where
   gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
-instance GParseRecord f r t i => GParseRecord (C1 x f) r t i where
+-- Only dig down to single field generic when it has more than one selector, allowing us to use coerce without overlap
+instance GParseRecord (a :*: b) r t i => GParseRecord (C1 x (a :*: b)) r t i where
   gParseRecord p fieldMapping record = M1 <$> gParseRecord p fieldMapping record
 
 instance (GParseRecord a r t i, GParseRecord b r t i) => GParseRecord (a :*: b) r t i where

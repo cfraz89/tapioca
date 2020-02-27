@@ -90,8 +90,8 @@ instance (Can 'Decode cs, Reduce t ('Just s) ('Just s) f cs r, Index t s, KnownS
           notDecodeError :: C.Parser f
           notDecodeError = error $ "Field " <> selector <> " is not a decode field"
 
-instance (Can 'Decode cs, Reduce t Nothing 'Nothing f cs r)  => GParseRecord (S1 ('MetaSel 'Nothing p1 p2 p3) (Rec0 f)) r t C.NamedRecord where
-  gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
+instance (Can 'Decode cs, Reduce t Nothing 'Nothing f cs r)  => GParseRecord (C1 x (S1 ('MetaSel ms p1 p2 p3) (Rec0 f))) r t C.NamedRecord where
+  gParseRecord _ fieldMapping namedRecord = M1 . M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @'Nothing @'Nothing @f @cs @r fieldMapping of
             Coerced cm -> parseCoerced cm 
             CoercedDecode cm -> parseCoerced cm 
@@ -102,8 +102,8 @@ instance (Can 'Decode cs, Reduce t Nothing 'Nothing f cs r)  => GParseRecord (S1
           parseCoerced (CsvDecode cm) = to <$> gParseRecord @_ @f proxy# cm namedRecord
           parseCoerced (CsvEncode cm) = error "Cannot coerce an encode map for decoding"
 
-instance (Can 'Decode cs, Reduce t 'Nothing 'Nothing f cs r)  => GParseRecord (S1 ('MetaSel 'Nothing p1 p2 p3) (K1 i f)) r t C.Record where
-  gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
+instance (Can 'Decode cs, Reduce t 'Nothing 'Nothing f cs r)  => GParseRecord (C1 x (S1 ('MetaSel ms p1 p2 p3) (Rec0 f))) r t C.Record where
+  gParseRecord _ fieldMapping record = M1 . M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @'Nothing @'Nothing @f @cs @r fieldMapping of
             Coerced cm -> parseCoerced cm 
             CoercedDecode cm -> parseCoerced cm 

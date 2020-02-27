@@ -20,11 +20,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-newtype RecordWrapper = RecordWrapper BasicRecord
+newtype RecordWrapper = RecordWrapper { unBasicRecord :: BasicRecord }
   deriving (Show, Generic)
 
 instance CsvMapped EncodeDecode RecordWrapper where
-  csvMap = mkCsvMap . coerced 
+  csvMap = mkCsvMap . coerced @BasicRecord
        $ "Sample Field 1" .-> #field1
       :| "Sample Field 3" .-> #field3
       :| "Sample Field 2" .-> #field2
