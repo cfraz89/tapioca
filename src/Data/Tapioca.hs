@@ -55,6 +55,7 @@ module Data.Tapioca
   , (.->)
   , nest
   , with
+  , coerced
   , encode
   , decode
   , header

@@ -17,6 +17,7 @@
 module Data.Tapioca.Internal.Types.CsvMap where
 
 import qualified Data.ByteString as B
+import Data.Coerce
 import qualified Data.Csv as C
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector as V
@@ -65,18 +66,10 @@ instance CsvEncodeReqs r (m Encode r) => MakeCsvMap Encode r m where
 instance CsvDecodeReqs r (m Decode r) => MakeCsvMap Decode r m where
   mkCsvMap = CsvDecode
 
--- -- We can't compose codecs since we can't change the type of m (easily)
--- mappingCodec :: (r'' -> r') -> (r' -> r'') -> CsvMap EncodeDecode r' -> CsvMap EncodeDecode r''
--- mappingCodec enc dec (CsvMap (Codec enc' dec') m) = CsvMap (Codec (enc' . enc) (dec . dec')) m
-
--- -- We can't compose codecs since we can't change the type of m (easily)
--- mappingEncoder :: (r'' -> r') -> CsvMap Encode r' -> CsvMap Encode r''
--- mappingEncoder enc (CsvEncode enc' m) = CsvEncode (enc' . enc) m
-
 infixl 5 .->
 
 class MakeFieldMapping f c t where
-  (.->) :: B.ByteString -> Field s f c t r -> FieldMapping s f t r
+  (.->) :: B.ByteString -> Field s f c t r -> FieldMapping ('Just s) f t r
 
 -- | Create a bidirectional mapping from name to field.
 -- | Since t can be encode, decode, or both, leave it open
@@ -93,7 +86,7 @@ instance (C.FromField c, f ~ c) => MakeFieldMapping f c Decode where
 
 -- Maybe this will work with parameterised fieldmappings
 class CsvMapped t c => Nestable s f c t r where
-  nest :: Field s f c t r -> FieldMapping s f t r
+  nest :: Field s f c t r -> FieldMapping ('Just s) f t r
 
 -- | Nest the record at this field into the mapping at this point.
 instance forall s r f c. (CsvMapped EncodeDecode c, Generic c) => Nestable s f c EncodeDecode r where
@@ -106,7 +99,7 @@ instance forall s r f c. (f ~ c, CsvMapped Decode f) => Nestable s f c Decode r 
   nest = NestDecode
 
 class Withable m s f c (t :: [Capability]) r where
-  with :: Field s f c t r -> m t c -> FieldMapping s f t r
+  with :: Field s f c t r -> m t c -> FieldMapping ('Just s) f t r
 
 -- | Nest the record at this field into the mapping at this point.
 instance (CsvDecodeReqs c (m EncodeDecode c), CsvEncodeReqs c (m EncodeDecode c)) => Withable m s f c EncodeDecode r where
@@ -118,6 +111,19 @@ instance (f ~ c, CsvEncodeReqs c (m Encode c)) => Withable m s f c Encode r wher
 instance (f ~ c, CsvDecodeReqs c (m Decode c)) => Withable m s f c Decode r where
   with f = WithDecode f . mkCsvMap
 
+class Coercable f r m (t :: [Capability]) where
+  coerced :: m t f -> FieldMapping 'Nothing f t r
+
+-- | Nest the record at this field into the mapping at this point.
+instance (CsvDecodeReqs f (m EncodeDecode f), CsvEncodeReqs f (m EncodeDecode f), Coercible r f) => Coercable f r m EncodeDecode where
+  coerced = Coerced . mkCsvMap
+
+instance (CsvEncodeReqs f (m Encode f), Coercible r f) => Coercable f r m Encode where
+  coerced = CoercedEncode . mkCsvMap
+
+instance (CsvDecodeReqs f (m Decode f), Coercible r f) => Coercable f r m Decode where
+  coerced = CoercedDecode . mkCsvMap
+
 -- | A mapping for a single field in our record.
 -- A `CsvMap` is a chain of FieldMappings joined with `:|`
 --
@@ -126,35 +132,47 @@ instance (f ~ c, CsvDecodeReqs c (m Decode c)) => Withable m s f c Decode r wher
 --   * '.->' to map a single field
 --   * 'nest' to nest into this field the mapping of the field's type
 --   * 'with' to nest into this field a given mapping
-data FieldMapping (s :: Symbol) f (t :: [Capability]) r where
-  BicodeFM :: forall s f c t r. (C.FromField c, C.ToField c) => B.ByteString -> Field s f c EncodeDecode r -> FieldMapping s f t r -- Any t allowed for bicoding
-  EncodeFM :: forall s f r. C.ToField f => B.ByteString -> Field s f f Encode r -> FieldMapping s f Encode r
-  DecodeFM :: forall s f r. C.FromField f => B.ByteString -> Field s f f Decode r -> FieldMapping s f Decode r
-  Nest :: forall s f c t r. (CsvMapped EncodeDecode c, Generic c) => Field s f c EncodeDecode r -> FieldMapping s f t r
-  NestEncode :: forall s f r. CsvMapped Encode f => Field s f f Encode r -> FieldMapping s f Encode r
-  NestDecode :: forall s f r. CsvMapped Decode f => Field s f f Decode r -> FieldMapping s f Decode r
-  With :: forall s f c t r. Field s f c EncodeDecode r -> CsvMap EncodeDecode c -> FieldMapping s f t r
-  WithEncode :: forall s f r. Field s f f Encode r -> CsvMap Encode f -> FieldMapping s f Encode r
-  WithDecode :: forall s f r. Field s f f Decode r -> CsvMap Decode f -> FieldMapping s f Decode r
+
+-- Field selctor name is Maybe - Nothing means match any selector
+data FieldMapping (s :: Maybe Symbol) f (t :: [Capability]) r where
+  BicodeFM :: forall s f c t r. (C.FromField c, C.ToField c) => B.ByteString -> Field s f c EncodeDecode r -> FieldMapping ('Just s) f t r -- Any t allowed for bicoding
+  EncodeFM :: forall s f r. C.ToField f => B.ByteString -> Field s f f Encode r -> FieldMapping ('Just s) f Encode r
+  DecodeFM :: forall s f r. C.FromField f => B.ByteString -> Field s f f Decode r -> FieldMapping ('Just s) f Decode r
+  Nest :: forall s f c t r. (CsvMapped EncodeDecode c, Generic c) => Field s f c EncodeDecode r -> FieldMapping ('Just s) f t r
+  NestEncode :: forall s f r. CsvMapped Encode f => Field s f f Encode r -> FieldMapping ('Just s) f Encode r
+  NestDecode :: forall s f r. CsvMapped Decode f => Field s f f Decode r -> FieldMapping ('Just s) f Decode r
+  With :: forall s f c t r. Field s f c EncodeDecode r -> CsvMap EncodeDecode c -> FieldMapping ('Just s) f t r
+  WithEncode :: forall s f r. Field s f f Encode r -> CsvMap Encode f -> FieldMapping ('Just s) f Encode r
+  WithDecode :: forall s f r. Field s f f Decode r -> CsvMap Decode f -> FieldMapping ('Just s) f Decode r
+  Coerced :: forall f t r. Coercible r f => CsvMap EncodeDecode f -> FieldMapping 'Nothing f t r
+  CoercedEncode :: forall f r. Coercible r f => CsvMap Encode f -> FieldMapping 'Nothing f Encode r
+  CoercedDecode :: forall f r. Coercible r f => CsvMap Decode f -> FieldMapping 'Nothing f Decode r
 
 -- | Match instance
-type instance Match (FieldMapping s f t r) s' = EqSymbol s s'
+type instance Match (FieldMapping ('Just s) f t r) s' = EqSymbol s s'
+type instance Match (FieldMapping 'Nothing f t r) s' = 'False
 
 -- | Class for terms which can be reduced to a FieldMapping
 -- The goal is to reduce to FieldMapping
-class Reduce t (s :: Symbol) f (mt :: [Capability]) r | t -> mt where
-  selectorMapping :: t -> FieldMapping s f mt r
+-- ms - the selector to match
+-- ms' -- the fieldmapping selector to equate to
+class Reduce t (ms :: Maybe Symbol) (ms' :: Maybe Symbol) f (mt :: [Capability]) r | t -> mt where
+  selectorMapping :: t -> FieldMapping ms' f mt r
+
+-- | Reduce instance for no selector in fieldmapping. will match any field
+instance (r~r', f~f') => Reduce (FieldMapping 'Nothing f mt r) ms 'Nothing f' mt r' where
+  selectorMapping = id
 
 -- | Reduce instance for a single FieldMapping
-instance (r~r', f~f') => Reduce (FieldMapping s f mt r) s f' mt r' where
+instance (r~r', f~f') => Reduce (FieldMapping ('Just s) f mt r) ('Just s) ('Just s) f' mt r' where
   selectorMapping = id
 
 -- | Reduce induction
-instance (Reduce tt s f mt r, m1 ~ Match (t1 mt r) s, m2 ~ Match (t2 mt r) s, PickMatch ((t1 :| t2) mt r) m1 m2 s, tt ~ Picked ((t1 :| t2) mt r) m1 m2 s) => Reduce ((t1 :| t2) mt r) s f mt r where
- selectorMapping t = selectorMapping (picked @_ @m1 @m2 @s t)
+instance (Reduce tt ('Just s) ('Just s) f mt r, m1 ~ Match (t1 mt r) s, m2 ~ Match (t2 mt r) s, PickMatch ((t1 :| t2) mt r) m1 m2 s, tt ~ Picked ((t1 :| t2) mt r) m1 m2 s) => Reduce ((t1 :| t2) mt r) ('Just s) ('Just s) f mt r where
+ selectorMapping t = selectorMapping @_ @('Just s) (picked @_ @m1 @m2 @s t)
 
 -- | Support for encoding
-instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.Record) where
+instance Can 'Encode cs => HFoldVal (FieldMapping ms f cs r) (r -> C.Record) where
   hFoldVal fm = case fm of
     BicodeFM _ (Field get (Codec enc _)) -> V.singleton . C.toField . enc . get
     EncodeFM _ (EncodeField e) -> V.singleton . C.toField . e
@@ -165,8 +183,14 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.Record) wher
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toRecord cm . enc
     WithDecode _ _ -> error "Decode 'with' not foldable"
+    Coerced _ -> error "Coercions don't have fieldmappings"
+    CoercedEncode _ -> error "Coercions don't have fieldmappings"
+    CoercedDecode _ -> error "Coercions don't have fieldmappings"
+    -- Coerced (cm :: CsvMap EncodeDecode c) -> toRecord cm . coerce
+    -- CoercedEncode (cm :: CsvMap Encode f) -> toRecord cm . coerce
+    -- CoercedDecode _ -> error "Coerced decode not foldable"
 
-instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.NamedRecord) where
+instance Can 'Encode cs => HFoldVal (FieldMapping ms f cs r) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
     BicodeFM name (Field get (Codec enc _)) -> HM.singleton name . C.toField . enc . get
     EncodeFM name (EncodeField e) -> HM.singleton name . C.toField . e
@@ -177,6 +201,12 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) (r -> C.NamedRecord)
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toNamedRecord cm . enc
     WithDecode _ _ -> error "Decode 'with' not foldable"
+    Coerced _ -> error "Coercions don't have fieldmappings"
+    CoercedEncode _ -> error "Coercions don't have fieldmappings"
+    CoercedDecode _ -> error "Coercions don't have fieldmappings"
+    -- Coerced (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . coerce
+    -- CoercedEncode (cm :: CsvMap Encode c) -> toNamedRecord cm . coerce
+    -- CoercedDecode _ -> error "Coerced decode not foldable"
 
 hFoldOf :: Can 'Encode cs => CsvMap cs r -> C.Header
 hFoldOf (CsvMap m) = foldHeader m
@@ -190,7 +220,7 @@ hFoldOf (CsvDecode _) = error "Cannot fold header for decode map"
 --     Nest (_ :: Field s f c EncodeDecode r) -> hFoldOf (csvMap @_ @c)
 --     With (_ :: Field s f c EncodeDecode r) cm -> hFoldOf cm
 
-instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) C.Header where
+instance Can 'Encode cs => HFoldVal (FieldMapping ms f cs r) C.Header where
   hFoldVal = \case
     BicodeFM name _ -> pure name
     EncodeFM name _ -> pure name
@@ -201,14 +231,21 @@ instance Can 'Encode cs => HFoldVal (FieldMapping s f cs r) C.Header where
     With (_ :: Field s f c EncodeDecode r) cm -> hFoldOf cm
     WithEncode (_ :: Field s f f Encode r) cm -> hFoldOf cm
     WithDecode _ _ -> error "Not providing header for decode with mapping"
+    Coerced cm -> hFoldOf cm
+    CoercedEncode cm -> hFoldOf cm
+    CoercedDecode _ -> error "Not providing header for decode coerced mapping"
 
 foldHeader :: HFoldable m C.Header => m -> C.Header
 foldHeader = hFoldMap @_ @C.Header id
 
-instance Index (FieldMapping s f t r) s where
+instance Index (FieldMapping ('Just s) f t r) s where
   index _ = 0
 
-instance Can 'Decode cs => Width (FieldMapping s f cs r) where
+-- For coercion / newtype, index will always be 0, regardless of selector
+instance Index (FieldMapping 'Nothing f t r) s where
+  index _ = 0
+
+instance Can 'Decode cs => Width (FieldMapping ms f cs r) where
   width = \case
     BicodeFM _ _ -> 1
     DecodeFM _ _ -> 1
@@ -219,6 +256,9 @@ instance Can 'Decode cs => Width (FieldMapping s f cs r) where
     With _ cm -> widthOf cm
     WithEncode _ _ -> error "No width required for encode fields"
     WithDecode _ cm -> widthOf cm
+    Coerced cm -> widthOf cm
+    CoercedEncode _ -> error "No width required for encode fields"
+    CoercedDecode cm -> widthOf cm
     where widthOf :: CsvMap cs' c -> Int
           widthOf (CsvMap mapping) = width mapping
           widthOf (CsvDecode mapping) = width mapping

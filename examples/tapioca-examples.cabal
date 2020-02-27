@@ -52,10 +52,10 @@ executable nested_encode
     main-is: NestedEncode.hs
     ghc-options: -main-is Data.Tapioca.Examples.NestedEncode
 
-executable newtype
+executable coerced
     import: example
-    main-is: Newtype.hs
-    ghc-options: -main-is Data.Tapioca.Examples.Newtype
+    main-is: Coerced.hs
+    ghc-options: -main-is Data.Tapioca.Examples.Coerced
 
 executable cassava_compat
     import: example

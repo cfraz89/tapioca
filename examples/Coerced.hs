@@ -7,7 +7,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 -- | Demonstration of basic use of Tapioca to decode a csv
-module Data.Tapioca.Examples.Newtype where
+module Data.Tapioca.Examples.Coerced where
 
 import GHC.Generics
 import Data.Tapioca
@@ -20,12 +20,11 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-newtype RecordWrapper = RecordWrapper { unRecordWrapper :: BasicRecord }
+newtype RecordWrapper = RecordWrapper BasicRecord
   deriving (Show, Generic)
 
 instance CsvMapped EncodeDecode RecordWrapper where
-  csvMap = mkCsvMap $
-    with #unRecordWrapper
+  csvMap = mkCsvMap . coerced 
        $ "Sample Field 1" .-> #field1
       :| "Sample Field 3" .-> #field3
       :| "Sample Field 2" .-> #field2

@@ -37,10 +37,9 @@ import qualified Data.Vector as V
 import Data.Semigroup ((<>))
 import Data.String.Conv
 
---Also should be Decode, as well as Both, once it exists
-instance (Can 'Decode cs, Reduce t s f cs r, KnownSymbol s) => GParseRecord (S1 ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
+instance (Can 'Decode cs, Reduce t ('Just s) ('Just s) f cs r, KnownSymbol s) => GParseRecord (S1 ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
-    where parseByType = case selectorMapping @_ @s @f @cs @r fieldMapping of
+    where parseByType = case selectorMapping @_ @('Just s) @('Just s) @f @cs @r fieldMapping of
             BicodeFM name (Field _ _codec) -> decodeWith name (_decode _codec)
             DecodeFM name (DecodeField decoder') -> decodeWith name decoder'
             Nest (Field _ _codec :: Field s f c EncodeDecode r) -> parseNest (csvMap @_ @c) (_decode _codec)
@@ -64,9 +63,9 @@ instance (Can 'Decode cs, Reduce t s f cs r, KnownSymbol s) => GParseRecord (S1 
           notDecodeError :: C.Parser f
           notDecodeError = error $ "Field " <> selector <> " is not a decode field"
 
-instance (Can 'Decode cs, Reduce t s f cs r, Index t s, KnownSymbol s) => GParseRecord (S1 ('MetaSel ('Just s) p1 p2 p3) (K1 i f)) r t C.Record where
+instance (Can 'Decode cs, Reduce t ('Just s) ('Just s) f cs r, Index t s, KnownSymbol s) => GParseRecord (S1 ('MetaSel ('Just s) p1 p2 p3) (Rec0 f)) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
-    where parseByType = case selectorMapping @_ @s @f @cs @r fieldMapping of
+    where parseByType = case selectorMapping @_ @('Just s) @('Just s) @f @cs @r fieldMapping of
             BicodeFM _ (Field _ _codec) -> decodeWith (_decode _codec)
             DecodeFM _ (DecodeField decoder') -> decodeWith decoder'
             Nest (Field _ _codec :: Field s f c EncodeDecode r) -> parseNest (csvMap @_ @c) (_decode _codec)
@@ -90,3 +89,29 @@ instance (Can 'Decode cs, Reduce t s f cs r, Index t s, KnownSymbol s) => GParse
           selector = symbolVal @s undefined
           notDecodeError :: C.Parser f
           notDecodeError = error $ "Field " <> selector <> " is not a decode field"
+
+instance (Can 'Decode cs, Reduce t Nothing 'Nothing f cs r)  => GParseRecord (S1 ('MetaSel 'Nothing p1 p2 p3) (Rec0 f)) r t C.NamedRecord where
+  gParseRecord _ fieldMapping namedRecord = M1 . K1 <$> parseByType
+    where parseByType = case selectorMapping @_ @'Nothing @'Nothing @f @cs @r fieldMapping of
+            Coerced cm -> parseCoerced cm 
+            CoercedDecode cm -> parseCoerced cm 
+            CoercedEncode _ -> error "Not a decode coercion"
+            _ -> error "This should only be used for coerce"
+          parseCoerced :: forall c cs'. Can 'Decode cs => CsvMap cs' f -> C.Parser f
+          parseCoerced (CsvMap cm) = to <$> gParseRecord @_ @f proxy# cm namedRecord
+          parseCoerced (CsvDecode cm) = to <$> gParseRecord @_ @f proxy# cm namedRecord
+          parseCoerced (CsvEncode cm) = error "Cannot coerce an encode map for decoding"
+
+instance (Can 'Decode cs, Reduce t 'Nothing 'Nothing f cs r)  => GParseRecord (S1 ('MetaSel 'Nothing p1 p2 p3) (K1 i f)) r t C.Record where
+  gParseRecord _ fieldMapping record = M1 . K1 <$> parseByType
+    where parseByType = case selectorMapping @_ @'Nothing @'Nothing @f @cs @r fieldMapping of
+            Coerced cm -> parseCoerced cm 
+            CoercedDecode cm -> parseCoerced cm 
+            CoercedEncode _ -> error "Not a decode coercion"
+            _ -> error "This should only be used for coerce"
+          parseCoerced :: forall c cs'. Can 'Decode cs => CsvMap cs' f -> C.Parser f
+          parseCoerced (CsvMap cm) = to <$> gParseRecord @_ @f proxy# cm record
+          parseCoerced (CsvDecode cm) = to <$> gParseRecord @_ @f proxy# cm record
+          parseCoerced (CsvEncode cm) = error "Cannot coerce an encode map for decoding"
+
+-- instance GParseRecord f r t i => GParseRecord (C1 x f) r t i where
