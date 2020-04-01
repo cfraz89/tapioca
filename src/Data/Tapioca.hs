@@ -61,8 +61,8 @@ module Data.Tapioca
   , header
   , codec
   , encoder
-  , by
-  , (>.)
+  , Field.to
+  , (%)
   , decoder
   , toRecord
   , toNamedRecord
@@ -79,7 +79,7 @@ import Data.Tapioca.Internal.ByCsvMap
 import Data.Tapioca.Internal.Types.ColSep
 import Data.Tapioca.Internal.Types.CsvMap
 import Data.Tapioca.Internal.Common
-import Data.Tapioca.Internal.Types.Field
+import Data.Tapioca.Internal.Types.Field as Field
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
 import Data.Tapioca.Internal.Types.ParseRecord()
 import Data.Tapioca.Internal.Types.Capability

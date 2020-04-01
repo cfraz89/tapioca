@@ -27,7 +27,7 @@ import Data.Tapioca.Internal.Common (bsVectorString)
 import Data.Tapioca.Internal.Types.Capability
 
 import GHC.Exts
-import GHC.Generics
+import GHC.Generics as G
 import GHC.TypeLits
 
 import Data.ByteString (ByteString)
@@ -56,8 +56,8 @@ instance (Can 'Decode cs, Reduce t ('Just s) ('Just s) f cs r, KnownSymbol s) =>
                     decode :: C.Field -> C.Parser f
                     decode f = decoder' <$> C.parseField f
           parseNest :: forall c cs'. Can 'Decode cs => CsvMap cs' c -> (c -> f) -> C.Parser f
-          parseNest (CsvMap cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm namedRecord
-          parseNest (CsvDecode cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm namedRecord
+          parseNest (CsvMap cm) dec = dec . G.to <$> gParseRecord @_ @c proxy# cm namedRecord
+          parseNest (CsvDecode cm) dec = dec . G.to <$> gParseRecord @_ @c proxy# cm namedRecord
           parseNest (CsvEncode _) _ = notDecodeError
           selector = symbolVal @s undefined
           notDecodeError :: C.Parser f
@@ -82,36 +82,34 @@ instance (Can 'Decode cs, Reduce t ('Just s) ('Just s) f cs r, Index t s, KnownS
                     decode :: C.Field -> C.Parser f
                     decode f = decoder' <$> C.parseField f
           parseNest :: forall c cs'. CsvMap cs' c -> (c -> f) -> C.Parser f
-          parseNest (CsvMap cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
-          parseNest (CsvDecode cm) dec = dec . to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
+          parseNest (CsvMap cm) dec = dec . G.to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
+          parseNest (CsvDecode cm) dec = dec . G.to <$> gParseRecord @_ @c proxy# cm (V.drop idx record)
           parseNest (CsvEncode _) _ = notDecodeError
           idx = index @_ @s fieldMapping
           selector = symbolVal @s undefined
           notDecodeError :: C.Parser f
           notDecodeError = error $ "Field " <> selector <> " is not a decode field"
 
-instance (Can 'Decode cs, Reduce t Nothing 'Nothing f cs r)  => GParseRecord (C1 x (S1 ('MetaSel ms p1 p2 p3) (Rec0 f))) r t C.NamedRecord where
+instance (Can 'Decode cs, Reduce t 'Nothing 'Nothing f cs r)  => GParseRecord (C1 x (S1 ('MetaSel ms p1 p2 p3) (Rec0 f))) r t C.NamedRecord where
   gParseRecord _ fieldMapping namedRecord = M1 . M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @'Nothing @'Nothing @f @cs @r fieldMapping of
-            Coerced cm -> parseCoerced cm 
-            CoercedDecode cm -> parseCoerced cm 
+            Coerced cm -> parseCoerced cm
+            CoercedDecode cm -> parseCoerced cm
             CoercedEncode _ -> error "Not a decode coercion"
-            _ -> error "This should only be used for coerce"
-          parseCoerced :: forall c cs'. Can 'Decode cs => CsvMap cs' f -> C.Parser f
-          parseCoerced (CsvMap cm) = to <$> gParseRecord @_ @f proxy# cm namedRecord
-          parseCoerced (CsvDecode cm) = to <$> gParseRecord @_ @f proxy# cm namedRecord
-          parseCoerced (CsvEncode cm) = error "Cannot coerce an encode map for decoding"
+          parseCoerced :: forall cs'. Can 'Decode cs => CsvMap cs' f -> C.Parser f
+          parseCoerced (CsvMap cm) = G.to <$> gParseRecord @_ @f proxy# cm namedRecord
+          parseCoerced (CsvDecode cm) = G.to <$> gParseRecord @_ @f proxy# cm namedRecord
+          parseCoerced (CsvEncode _) = error "Cannot coerce an encode map for decoding"
 
 instance (Can 'Decode cs, Reduce t 'Nothing 'Nothing f cs r)  => GParseRecord (C1 x (S1 ('MetaSel ms p1 p2 p3) (Rec0 f))) r t C.Record where
   gParseRecord _ fieldMapping record = M1 . M1 . K1 <$> parseByType
     where parseByType = case selectorMapping @_ @'Nothing @'Nothing @f @cs @r fieldMapping of
-            Coerced cm -> parseCoerced cm 
-            CoercedDecode cm -> parseCoerced cm 
+            Coerced cm -> parseCoerced cm
+            CoercedDecode cm -> parseCoerced cm
             CoercedEncode _ -> error "Not a decode coercion"
-            _ -> error "This should only be used for coerce"
-          parseCoerced :: forall c cs'. Can 'Decode cs => CsvMap cs' f -> C.Parser f
-          parseCoerced (CsvMap cm) = to <$> gParseRecord @_ @f proxy# cm record
-          parseCoerced (CsvDecode cm) = to <$> gParseRecord @_ @f proxy# cm record
-          parseCoerced (CsvEncode cm) = error "Cannot coerce an encode map for decoding"
+          parseCoerced :: forall cs'. Can 'Decode cs => CsvMap cs' f -> C.Parser f
+          parseCoerced (CsvMap cm) = G.to <$> gParseRecord @_ @f proxy# cm record
+          parseCoerced (CsvDecode cm) = G.to <$> gParseRecord @_ @f proxy# cm record
+          parseCoerced (CsvEncode _) = error "Cannot coerce an encode map for decoding"
 
 -- instance GParseRecord f r t i => GParseRecord (C1 x f) r t i where

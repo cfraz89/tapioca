@@ -54,8 +54,8 @@ import Data.Tapioca
 
 instance CsvMapped MyRecord where
   csvMap = CsvMap
-     $ "Header for Field 1" <-> #field1
-    :| "Header for Field 2" <-> #field2
+     $ "Header for Field 1" .-> #field1
+    :| "Header for Field 2" .-> #field2
 
 -- Example usage
 myCSV :: ByteString
@@ -69,40 +69,42 @@ We see here that tapioca provides us with a more succinct definition for definin
 
 ## Usage
 ### Bidirectional mappings
-As seen earlier, the key part of using Tapioca to create a bidirectional mapping is to define an instance of `CsvMapped` for your type, using the `CsvMap` constructor:
+As seen earlier, the key part of using Tapioca to create a bidirectional mapping is to define an instance of `CsvMapped EncodeDecode` for your type, using the `mkCsvMap` function. This instance will only be allowed if no encode or decode-only functions are used in your mapping.
 
 ```haskell
-instance CsvMapped MyRecord where
-  csvMap = CsvMap
-     $ "Header for Field 1" <-> #field1
-    :| "Header for Field 2" <-> #field2
-    :| "Header for Field 3" <-> #field3
+instance CsvMapped EncodeDecode MyRecord where
+  csvMap = mkCsvMap
+     $ "Header for Field 1" .-> #field1
+    :| "Header for Field 2" .-> #field2
+    :| "Header for Field 3" .-> #field3
 
 ```
 
 ### Encode-only mappings
-Encode-only mappings are more flexible than bidrectional mappings, as there is no concern for parsing a csv back into the record. They are created with the `CsvEncode` constructor, and the |-> combinator to map headers to fields:
+Encode-only mappings allow for more encoding options than bidrectional mappings, as there is no concern for parsing a csv back into the record.
 
 ```haskell
-instance CsvMapped BasicRecord where
- csvMap = CsvEncode
-    $ "Header for Field 1" <- #field1
-   :| "Header for Field 2" <- #field2
+instance CsvMapped Encode MyRecord where
+ csvMap = mkCsvMap
+    $ "Header for Field 1" .-> #field1
+   :| "Header for Field 2" .-> #field2
+   :| "Header for Field 3" .-> to (\record -> foo record)
 ```
 
 #### Mapping selectors
 Fields can be mapped on top of cassava's `FromField` and `ToField` instances on a per-field basis.
 If you wish to map a bidirectional field, use `codec` together with encoding and decoding mapping functions.
 If you wish to map an encode-only field, use `encoder` together with an encoding function.
+If you wish to map a decode-only field, use `decoder` together with a decoding function.
 
 ```haskell
-instance CsvMapped MyRecord where
-  csvMap = CsvEncode
-    $ "Header for Field 1" <-> #field1 `codec` (toOrdinal, fromOrdinal)
-   :| "Header for Field 2" <- #field2 `encoder` toOrdinal
+instance CsvMapped Encode MyRecord where
+  csvMap = mkCsvMap
+    $ "Header for Field 1" .-> codec toOrdinal fromOrdinal #field1
+   :| "Header for Field 2" .-> encoder toOrdinal #field2 -- Can no longer have a bidirectional mapping
 
 ```
-Refer to the *CodecField* and *EncodeOnly* examples to see this in practice.
+Refer to the *EncodeOnly* and *DecodeWith* examples to see this in practice.
 
 ### Nesting maps
 Occasionally you may want to nest a record within another record. Provided that both your records implement `CsvMapped`, this can be done by using the `Nest` constructor:
@@ -114,10 +116,10 @@ data NestingRecord = NestingRecord
   }
   deriving (Show, Generic)
 
-instance CsvMapped NestingRecord where
-  csvMap = CsvMap
+instance CsvMapped EncodeDecode NestingRecord where
+  csvMap = mkCsvMap
      $ nest #exampleRecord
-    :| "Other" <-> #other
+    :| "Other" .-> #other
 
 ```
 Then in this example, for each row, the fields of ExampleRecord will precede the "Other" column field.

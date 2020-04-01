@@ -10,7 +10,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
 
-module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, by, (>.), decoder) where
+module Data.Tapioca.Internal.Types.Field (Field(..), Codec(..), codec, idCodec, encoder, to, (%), decoder) where
 
 import GHC.OverloadedLabels
 import GHC.Records
@@ -30,7 +30,7 @@ idCodec = Codec id id
 data Field (s :: Symbol) f c (cs :: [Capability]) r where
   Field :: (r -> f) -> Codec f c -> Field s f c EncodeDecode r
   EncodeField :: (r -> f) -> Field s f f Encode r
-  DecodeField :: (c -> f) -> Field s f c Decode r 
+  DecodeField :: (c -> f) -> Field s f c Decode r
 
 -- | Perform a bidirectional mapping on this field with the given 'Codec'
 codec :: (c -> c') -> (c' -> c) -> Field s f c EncodeDecode r -> Field s f c' EncodeDecode r
@@ -47,12 +47,12 @@ instance (HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' f' Encode 
   fromLabel = EncodeField (getField @x)
 
 -- Arbitrary encoding field
-by :: (r -> f) -> Field s f f Encode r
-by = EncodeField
+to :: (r -> f) -> Field s f f Encode r
+to = EncodeField
 
-infixl 6 >.
-(>.) :: Field s f f Encode r -> Field s' f' f' Encode f -> Field s' f' f' Encode r
-(EncodeField l) >. (EncodeField r) = EncodeField (r . l)
+infixl 6 %
+(%) :: Field s f f Encode r -> Field s' f' f' Encode f -> Field s' f' f' Encode r
+(EncodeField l) % (EncodeField r) = EncodeField (r . l)
 
 instance (c~f, HasField x r f, x~x', r~r', f~f') => IsLabel x (Field x' f' c Decode r') where
   fromLabel = DecodeField id

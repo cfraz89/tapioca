@@ -20,7 +20,7 @@ data BasicRecord = BasicRecord
   }
   deriving (Show, Generic)
 
-newtype RecordWrapper = RecordWrapper { unBasicRecord :: BasicRecord }
+newtype RecordWrapper = RecordWrapper BasicRecord
   deriving (Show, Generic)
 
 instance CsvMapped EncodeDecode RecordWrapper where

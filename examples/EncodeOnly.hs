@@ -22,8 +22,8 @@ instance CsvMapped Encode BasicRecord where
  csvMap = mkCsvMap
     $ "Sample Field 1" .-> #field1
    :| "Computed From Field 2" .-> encoder (++ " plus more") #field2
-   :| "Sample Field 3" .-> #field3 
-   :| "Arbitrary Field" .-> by (const @String "Any data")
+   :| "Sample Field 3" .-> #field3
+   :| "Arbitrary Field" .-> to (const @String "Any data")
 
 
 main :: IO ()
