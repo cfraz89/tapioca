@@ -59,10 +59,10 @@ instance CsvMapped MyRecord where
 
 -- Example usage
 myCSV :: ByteString
-myCSV = encode HasHeader myRecords
+myCSV = encode WithHeader myRecords
 
 fromCSV :: ByteString -> Either String (Vector MyRecord)
-fromCSV = decode HasHeader
+fromCSV = decode WithHeader
 ```
 
 We see here that tapioca provides us with a more succinct definition for defining bidrectional CSV mappings, avoiding any unnecessary duplication, and keeping the entire definition within a single typeclass.

@@ -4,6 +4,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Main where
 
@@ -23,7 +25,7 @@ main = hspec $ do
       let basicRecords = [basicRecord1, basicRecord2]
 
       it "Encodes flat record with header" $ do
-        let encoded = encode HasHeader basicRecords
+        let encoded = encode WithHeader basicRecords
         encoded `shouldBe` "Column 1,Column 2,Column 3\r\n1,test,2.0\r\n2,data,4.5\r\n"
 
       it "Encodes flat record without header " $ do
@@ -37,7 +39,7 @@ main = hspec $ do
             ]
 
       it "Encodes nesting record with header" $ do
-        let encoded = encode HasHeader nestingRecords
+        let encoded = encode WithHeader nestingRecords
         encoded `shouldBe` "SomeInfo 1,SomeInfo 2,Column 1,Column 2,Column 3,SomeInfo 3\r\n1,foo,1,test,2.0,2.5\r\n2,bar,2,data,4.5,5.5\r\n"
 
       it "Encodes nesting record without header" $ do
@@ -69,7 +71,7 @@ main = hspec $ do
 
       it "Decodes as ordered record with header" $ do
         let csv = "Column 1,Column 2,Column 3\r\n1,Buzz,4.0\r\n12,Fizz,7.3"
-        let decoded = decode @BasicRecord (DecodeOrdered HasHeader) csv
+        let decoded = decode @BasicRecord (DecodeOrdered WithHeader) csv
         decoded `shouldBe` (Right (V.fromList
                                    [ BasicRecord 1 "Buzz" 4.0
                                    , BasicRecord 12 "Fizz" 7.3
@@ -91,7 +93,7 @@ main = hspec $ do
     describe "Nested Records" $ do
       it "Decodes nested record named" $ do
         let csv = "SomeInfo 1,SomeInfo 2,Column 1,Column 2,Column 3\r\n1,foo,2,test,5.6,6.4\r\n2,bar,2,data,4.5, 10.1\r\n"
-        let decoded = decode @NestingRecord (DecodeOrdered HasHeader) csv
+        let decoded = decode @NestingRecord (DecodeOrdered WithHeader) csv
         decoded `shouldBe` (Right (V.fromList
                                    [ NestingRecord 1 (BasicRecord 2 "test" 5.6) "foo" 6.4
                                    , NestingRecord 2 (BasicRecord 2 "data" 4.5) "bar" 10.1
@@ -117,11 +119,11 @@ data BasicRecord = BasicRecord
   , field3 :: Float
   } deriving (Generic, Eq, Show)
 
-instance CsvMapped 'Both BasicRecord where
-  csvMap = CsvMap
-    $ "Column 1" <-> #field1
-   :| "Column 2" <-> #field2
-   :| "Column 3" <-> #field3
+instance CsvMapped EncodeDecode BasicRecord where
+  csvMap = mkCsvMap
+    $ "Column 1" .-> #field1
+   :| "Column 2" .-> #field2
+   :| "Column 3" .-> #field3
 
 data NestingRecord = NestingRecord
   { nField1 :: Int
@@ -130,9 +132,9 @@ data NestingRecord = NestingRecord
   , nField3 :: Float
   } deriving (Generic, Eq, Show)
 
-instance CsvMapped 'Both NestingRecord where
+instance CsvMapped EncodeDecode NestingRecord where
   csvMap = CsvMap
-    $ "SomeInfo 1" <-> #nField1
-   :| "SomeInfo 2" <-> #nField2
+    $ "SomeInfo 1" .-> #nField1
+   :| "SomeInfo 2" .-> #nField2
    :| nest #nBasicData
-   :| "SomeInfo 3" <-> #nField3
+   :| "SomeInfo 3" .-> #nField3

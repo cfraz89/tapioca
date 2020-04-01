@@ -34,6 +34,7 @@ library
                    Data.Tapioca.Internal.Types.CsvMap,
                    Data.Tapioca.Internal.Types.Capability,
                    Data.Tapioca.Internal.Types.GParseRecord,
+                   Data.Tapioca.Internal.Types.HeaderOption,
                    Data.Tapioca.Internal.Types.HFoldable,
                    Data.Tapioca.Internal.Types.Index,
                    Data.Tapioca.Internal.Types.Match,

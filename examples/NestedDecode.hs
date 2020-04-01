@@ -41,6 +41,6 @@ instance CsvMapped Decode NestingRecord where
 
 main :: IO ()
 main = pPrint $
-  decode @NestingRecord (DecodeOrdered HasHeader)
+  decode @NestingRecord (DecodeOrdered WithHeader)
       $ "Sample Field 1,Sample Field 3,Sample Field 2,Other,Data\r\n"
      <> "76,,general data,2,stuff"

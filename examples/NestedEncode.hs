@@ -40,7 +40,7 @@ instance CsvMapped EncodeDecode NestingRecord where
     :| "Data" .-> #someData
 
 main :: IO ()
-main = pPrint $ encode HasHeader
+main = pPrint $ encode WithHeader
   [ NestingRecord "Some data" (BasicRecord 1 "This is field 2" (Just 3)) 4
   , NestingRecord "Some more data" (BasicRecord 2 "This is field 2 agagin" (Just 4)) 5
   ]

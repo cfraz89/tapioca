@@ -44,5 +44,5 @@ main = do
   pPrint $ Csv.encodeDefaultOrderedByName [BasicRecord 1 "Test" (Just 3)]
   pPrint $ Csv.encodeByName (header @BasicRecord csvMap) [BasicRecord 1 "Test" (Just 3)]
   pPrint $ Csv.encode [BasicRecord 1 "Test" (Just 3)]
-  pPrint $ Csv.decode @BasicRecord NoHeader "1,3,Test"
+  pPrint $ Csv.decode @BasicRecord Csv.NoHeader "1,3,Test"
   pPrint $ Csv.decodeByName @BasicRecord "Sample Field 1,Sample Field 2,Sample Field 3\r\n1,Test,3"

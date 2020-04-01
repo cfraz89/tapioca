@@ -67,7 +67,7 @@ module Data.Tapioca
   , toRecord
   , toNamedRecord
   , mkCsvMap
-  , C.HasHeader(..)
+  , HeaderOption(..)
   , Encode
   , Decode
   , EncodeDecode
@@ -83,6 +83,7 @@ import Data.Tapioca.Internal.Types.Field as Field
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
 import Data.Tapioca.Internal.Types.ParseRecord()
 import Data.Tapioca.Internal.Types.Capability
+import Data.Tapioca.Internal.Types.HeaderOption
 
 import qualified Data.Attoparsec.ByteString.Lazy as AB
 import qualified Data.Binary.Builder as BB
@@ -105,18 +106,18 @@ import qualified Data.Vector as V
 
 -- $example-basic-class
 -- @
--- instance 'CsvMapped' TestItem where
---  'csvMap' = 'CsvMap'
---  $ "Field 1" '<->' #field1
+-- instance 'CsvMapped' 'EncodeDecode' TestItem where
+--  'csvMap' = 'mkCsvMap'
+--  $ "Field 1" '.->' #field1
 -- ':|' 'nest' #field2
--- ':|' "Field 3" '<->' #field3
+-- ':|' "Field 3" '.->' #field3
 -- @
 
--- $example-iso-class
+-- $example-codec-class
 -- @
--- instance 'CsvMapped' TestItem where
+-- instance 'CsvMapped' 'EncodeDecode' TestItem where
 --  'csvMap' = 'CsvMap'
---  $ "Field 1" '<->' #field1 '<:>' iso (+1) (-1)
+--  $ "Field 1" '.->' codec #field1 (+1) (-1)
 -- ':|' 'nest' #field2
 -- ':|' "Field 3" '<->' #field3
 -- @
@@ -125,7 +126,7 @@ import qualified Data.Vector as V
 -- To encode to csv:
 --
 -- @
--- 'encode' 'HasHeader' testItems
+-- 'encode' 'WithHeader' testItems
 -- @
 --
 -- To decode from csv:
@@ -136,12 +137,12 @@ import qualified Data.Vector as V
 
 
 -- | Encode a list of items using our mapping
-encode :: forall r cs. (CsvMapped cs r, Can 'Encode cs) => C.HasHeader -> [r] -> BL.ByteString
-encode hasHeader items = BB.toLazyByteString $
+encode :: forall r cs. (CsvMapped cs r, Can 'Encode cs) => HeaderOption -> [r] -> BL.ByteString
+encode withHeader items = BB.toLazyByteString $
   hdr <> mconcat (CB.encodeRecord . toRecord (csvMap @cs) <$> items)
-  where hdr = case hasHeader of
-          C.HasHeader -> CB.encodeHeader $ header (csvMap @cs @r)
-          C.NoHeader -> mempty
+  where hdr = case withHeader of
+          WithHeader -> CB.encodeHeader $ header (csvMap @cs @r)
+          NoHeader -> mempty
 
 -- | Decode a CSV String. If there is an error parsion, error message is returned on the left
 decode :: forall r cs t. (CsvMapped cs r, Can 'Decode cs, Generic r, ParseWithCsvMap cs r C.NamedRecord, ParseWithCsvMap cs r C.Record) => DecodeIndexing r t -> BL.ByteString -> Either String (V.Vector r)
@@ -158,5 +159,5 @@ decode indexing csv = C.runParser $ do
 parseCsv :: forall r cs t. (CsvMapped cs r, Can 'Decode cs) => DecodeIndexing r t -> BL.ByteString -> C.Parser (V.Vector t)
 parseCsv indexing csv = toParser . AB.eitherResult . flip AB.parse csv $ case indexing of
     DecodeNamed -> snd <$> CP.csvWithHeader C.defaultDecodeOptions
-    DecodeOrdered C.HasHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
-    DecodeOrdered C.NoHeader -> CP.csv C.defaultDecodeOptions
+    DecodeOrdered WithHeader -> CP.header (toEnum $ fromEnum ',') >> CP.csv C.defaultDecodeOptions
+    DecodeOrdered NoHeader -> CP.csv C.defaultDecodeOptions

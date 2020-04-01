@@ -38,4 +38,4 @@ instance CsvMapped Encode BasicPair where
 
 main :: IO ()
 main = pPrint $
-  encode HasHeader [BasicPair (BasicRecord 12 "testField" (Just 9)) (BasicRecord 3 "test Again" (Just 7))]
+  encode WithHeader [BasicPair (BasicRecord 12 "testField" (Just 9)) (BasicRecord 3 "test Again" (Just 7))]

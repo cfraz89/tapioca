@@ -28,6 +28,6 @@ instance CsvMapped Encode BasicRecord where
 
 main :: IO ()
 main = pPrint $
-  encode HasHeader [ BasicRecord 1 "This is field 2" (Just 3)
+  encode WithHeader [ BasicRecord 1 "This is field 2" (Just 3)
                    , BasicRecord 2 "This is field 2 again" (Just 6)
                    ]

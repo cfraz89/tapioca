@@ -10,8 +10,7 @@
 
 -- | Functions needed in both encoding and decoding
 module Data.Tapioca.Internal.Common
-  ( (?!)
-  , toParser
+  ( toParser
   , bsVectorString
   , DecodeIndexing(..)
   ) where
@@ -20,11 +19,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Control.Error.Util
 import qualified Data.Csv as C
+import Data.Tapioca.Internal.Types.HeaderOption
 import Data.Tapioca.Internal.Types.ParseWithCsvMap
-
-infixl 1 ?!
-(?!) :: Maybe a -> b -> Either b a
-(?!) = flip note
 
 toParser :: Either String a -> C.Parser a
 toParser (Left e) = fail e
@@ -38,5 +34,5 @@ data DecodeIndexing r t where
   -- | Use the csv's header row to match against our field mappings. This is the primary use case.
   DecodeNamed :: ParseWithCsvMap cs r C.NamedRecord => DecodeIndexing r C.NamedRecord
   -- | Attempt to read the csv in the same order as our mapping has been defined.
-  -- If HasHeader is set, the first row (header row) will be skipped.
-  DecodeOrdered :: ParseWithCsvMap cs r C.Record => C.HasHeader -> DecodeIndexing r C.Record
+  -- If WithHeader is set, the first row (header row) will be skipped.
+  DecodeOrdered :: ParseWithCsvMap cs r C.Record => HeaderOption -> DecodeIndexing r C.Record
