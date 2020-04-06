@@ -183,12 +183,9 @@ instance Can 'Encode cs => HFoldVal (FieldMapping ms f cs r) (r -> C.Record) whe
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toRecord cm . enc
     WithDecode _ _ -> error "Decode 'with' not foldable"
-    Coerced _ -> error "Coercions don't have fieldmappings"
-    CoercedEncode _ -> error "Coercions don't have fieldmappings"
-    CoercedDecode _ -> error "Coercions don't have fieldmappings"
-    -- Coerced (cm :: CsvMap EncodeDecode c) -> toRecord cm . coerce
-    -- CoercedEncode (cm :: CsvMap Encode f) -> toRecord cm . coerce
-    -- CoercedDecode _ -> error "Coerced decode not foldable"
+    Coerced (cm :: CsvMap EncodeDecode c) -> toRecord cm . coerce
+    CoercedEncode (cm :: CsvMap Encode c) -> toRecord cm . coerce
+    CoercedDecode _ -> error "Coerced decode not foldable"
 
 instance Can 'Encode cs => HFoldVal (FieldMapping ms f cs r) (r -> C.NamedRecord) where
   hFoldVal fm = case fm of
@@ -201,12 +198,9 @@ instance Can 'Encode cs => HFoldVal (FieldMapping ms f cs r) (r -> C.NamedRecord
     With (Field get (Codec enc _)) (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . enc . get
     WithEncode (EncodeField enc) (cm :: CsvMap Encode c) -> toNamedRecord cm . enc
     WithDecode _ _ -> error "Decode 'with' not foldable"
-    Coerced _ -> error "Coercions don't have fieldmappings"
-    CoercedEncode _ -> error "Coercions don't have fieldmappings"
-    CoercedDecode _ -> error "Coercions don't have fieldmappings"
-    -- Coerced (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . coerce
-    -- CoercedEncode (cm :: CsvMap Encode c) -> toNamedRecord cm . coerce
-    -- CoercedDecode _ -> error "Coerced decode not foldable"
+    Coerced (cm :: CsvMap EncodeDecode c) -> toNamedRecord cm . coerce
+    CoercedEncode (cm :: CsvMap Encode c) -> toNamedRecord cm . coerce
+    CoercedDecode _ -> error "Coerced decode not foldable"
 
 hFoldOf :: Can 'Encode cs => CsvMap cs r -> C.Header
 hFoldOf (CsvMap m) = foldHeader m

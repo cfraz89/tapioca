@@ -112,6 +112,25 @@ main = hspec $ do
         let decoded = decode @NestingRecord (DecodeOrdered NoHeader) csv
         decoded `shouldSatisfy` isLeft
 
+  describe "Coercion" $ do
+    it "Encodes newtype-wrapped records" $ do
+      let basicRecord1 = BasicRecord 1 "test" 2.0
+          basicRecord2 = BasicRecord 2 "data" 4.5
+          wrappedRecords =
+            [ BasicRecordWrapper basicRecord1
+            , BasicRecordWrapper basicRecord2
+            ]
+          encoded = encode WithHeader wrappedRecords
+      encoded `shouldBe` "Column 1,Column 2,Column 3\r\n1,test,2.0\r\n2,data,4.5\r\n"
+
+    it "Decodes newtype-wrapped records" $ do
+      let csv = "Column 1,Column 2,Column 3\r\n1,Buzz,4.0\r\n12,Fizz,7.3"
+          decoded = decode @BasicRecordWrapper DecodeNamed csv
+      decoded `shouldBe` (Right (V.fromList
+                                  [ BasicRecordWrapper $ BasicRecord 1 "Buzz" 4.0
+                                  , BasicRecordWrapper $ BasicRecord 12 "Fizz" 7.3
+                                  ]))
+
 
 data BasicRecord = BasicRecord
   { field1 :: Int
@@ -138,3 +157,12 @@ instance CsvMapped EncodeDecode NestingRecord where
    :| "SomeInfo 2" .-> #nField2
    :| nest #nBasicData
    :| "SomeInfo 3" .-> #nField3
+
+newtype BasicRecordWrapper = BasicRecordWrapper BasicRecord
+  deriving (Generic, Eq, Show)
+
+instance CsvMapped EncodeDecode BasicRecordWrapper where
+  csvMap = mkCsvMap . coerced
+    $ "Column 1" .-> #field1
+   :| "Column 2" .-> #field2
+   :| "Column 3" .-> #field3
